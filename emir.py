@@ -69,22 +69,30 @@ async def parite_islemi_ac(yon: str, rasyo_df, giris_orani: float, zaman_dilimi:
     xau_risk = risk.stop_ve_hedef_hesapla(xau_df, xau_giris, xau_alis_mi, risk.GUVENLIK_AGI_CARPANI)
     xag_risk = risk.stop_ve_hedef_hesapla(xag_df, xag_giris, xag_alis_mi, risk.GUVENLIK_AGI_CARPANI)
 
+    # Sabit lot yerine, stop mesafesine gore dinamik lot: genis stop -> kucuk
+    # lot, dar stop -> buyuk lot; boylece her bacakta hedeflenen dolar riski
+    # (varsayilan $30) sabit kalir, oynaklik degistikce kontrolsuzce degismez.
+    xau_stop_mesafesi = abs(xau_giris - xau_risk["stop_loss"])
+    xag_stop_mesafesi = abs(xag_giris - xag_risk["stop_loss"])
+    xau_lot = risk.lot_hesapla(xau_stop_mesafesi, risk.XAU_KONTRAT_BUYUKLUGU)
+    xag_lot = risk.lot_hesapla(xag_stop_mesafesi, risk.XAG_KONTRAT_BUYUKLUGU)
+
     if xau_alis_mi:
         xau_sonuc = await baglanti.create_market_buy_order(
-            mt5_veri.XAU_SEMBOL, risk.LOT, xau_risk["stop_loss"], xau_risk["take_profit"]
+            mt5_veri.XAU_SEMBOL, xau_lot, xau_risk["stop_loss"], xau_risk["take_profit"]
         )
     else:
         xau_sonuc = await baglanti.create_market_sell_order(
-            mt5_veri.XAU_SEMBOL, risk.LOT, xau_risk["stop_loss"], xau_risk["take_profit"]
+            mt5_veri.XAU_SEMBOL, xau_lot, xau_risk["stop_loss"], xau_risk["take_profit"]
         )
 
     if xag_alis_mi:
         xag_sonuc = await baglanti.create_market_buy_order(
-            mt5_veri.XAG_SEMBOL, risk.LOT, xag_risk["stop_loss"], xag_risk["take_profit"]
+            mt5_veri.XAG_SEMBOL, xag_lot, xag_risk["stop_loss"], xag_risk["take_profit"]
         )
     else:
         xag_sonuc = await baglanti.create_market_sell_order(
-            mt5_veri.XAG_SEMBOL, risk.LOT, xag_risk["stop_loss"], xag_risk["take_profit"]
+            mt5_veri.XAG_SEMBOL, xag_lot, xag_risk["stop_loss"], xag_risk["take_profit"]
         )
 
     rasyo_risk = risk.rasyo_stop_hedef_hesapla(rasyo_df, giris_orani, alis_mi=(yon == "AL"))
@@ -99,6 +107,6 @@ async def parite_islemi_ac(yon: str, rasyo_df, giris_orani: float, zaman_dilimi:
         "durum": "islem_acildi",
         "yon": yon,
         "rasyo": {"giris": giris_orani, **rasyo_risk},
-        "xau": {"alis_mi": xau_alis_mi, "giris": xau_giris, **xau_risk, "sonuc": xau_sonuc},
-        "xag": {"alis_mi": xag_alis_mi, "giris": xag_giris, **xag_risk, "sonuc": xag_sonuc},
+        "xau": {"alis_mi": xau_alis_mi, "giris": xau_giris, "lot": xau_lot, **xau_risk, "sonuc": xau_sonuc},
+        "xag": {"alis_mi": xag_alis_mi, "giris": xag_giris, "lot": xag_lot, **xag_risk, "sonuc": xag_sonuc},
     }

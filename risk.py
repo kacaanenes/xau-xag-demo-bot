@@ -6,7 +6,7 @@ import teknik
 
 SL_ATR_CARPANI = 1.5
 RISK_ODUL_ORANI = 1.5
-LOT = 0.01
+LOT = 0.01  # artik kullanilmiyor, geriye uyumluluk icin birakildi
 
 # Bacak-seviyesi stoplar artik asil karar mekanizmasi degil, sadece dongu
 # calismazsa diye bir felaket guvenlik agi - bu yuzden normalden cok daha
@@ -16,6 +16,25 @@ GUVENLIK_AGI_CARPANI = 4.0
 
 RATIO_SL_ATR_CARPANI = 1.5
 RATIO_RISK_ODUL_ORANI = 2.0  # mean-reversion icin olculen en iyi risk/odul
+
+XAU_KONTRAT_BUYUKLUGU = 100  # oz/lot
+XAG_KONTRAT_BUYUKLUGU = 5000  # oz/lot
+
+# Sabit lot yerine, stop mesafesi ne olursa olsun her bacakta ayni dolar
+# riskini hedefleyen dinamik lot. Boylece genis stop -> kucuk lot,
+# dar stop -> buyuk lot; sabit lotla oynaklik degistikce kontrolsuzce
+# degisen risk sorunu ortadan kalkiyor.
+HEDEF_RISK_USD = 30.0
+MIN_LOT = 0.01
+LOT_ADIMI = 0.01
+
+
+def lot_hesapla(stop_mesafesi_fiyat: float, kontrat_buyuklugu: float, hedef_risk_usd: float = HEDEF_RISK_USD) -> float:
+    if stop_mesafesi_fiyat <= 0:
+        return MIN_LOT
+    lot_ham = hedef_risk_usd / (stop_mesafesi_fiyat * kontrat_buyuklugu)
+    lot = round(lot_ham / LOT_ADIMI) * LOT_ADIMI
+    return max(round(lot, 2), MIN_LOT)
 
 
 def stop_ve_hedef_hesapla(df, giris_fiyati: float, alis_mi: bool, atr_carpani: float = SL_ATR_CARPANI) -> dict:
