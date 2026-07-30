@@ -1,4 +1,4 @@
-name: Saatlik XAU/XAG Demo Bot
+name: Saatlik Demo Botlari (XAU/XAG + AUDNZD)
 
 on:
   schedule:
@@ -21,13 +21,21 @@ jobs:
       - name: Bagimliliklari kur
         run: pip install -r requirements.txt
 
-      - name: Botu calistir
+      - name: XAU/XAG botunu calistir
         env:
           METAAPI_TOKEN: ${{ secrets.METAAPI_TOKEN }}
           MT5_LOGIN: ${{ secrets.MT5_LOGIN }}
           MT5_PASSWORD: ${{ secrets.MT5_PASSWORD }}
           MT5_SERVER: ${{ secrets.MT5_SERVER }}
         run: python main.py
+
+      - name: AUDNZD botunu calistir
+        env:
+          METAAPI_TOKEN: ${{ secrets.METAAPI_TOKEN }}
+          MT5_LOGIN: ${{ secrets.MT5_LOGIN }}
+          MT5_PASSWORD: ${{ secrets.MT5_PASSWORD }}
+          MT5_SERVER: ${{ secrets.MT5_SERVER }}
+        run: python audnzd_main.py
 
       - name: Pozisyon durumunu commitle
         run: |
