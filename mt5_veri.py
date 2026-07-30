@@ -24,7 +24,20 @@ async def hesap_al():
 
     _api = MetaApi(config.METAAPI_TOKEN)
     hesaplar = await _api.metatrader_account_api.get_accounts_with_infinite_scroll_pagination()
-    hesap = next(h for h in hesaplar if h.login == config.MT5_LOGIN)
+    hesap = next((h for h in hesaplar if h.login == config.MT5_LOGIN), None)
+
+    if hesap is None:
+        hesap = await _api.metatrader_account_api.create_account(
+            account={
+                "name": f"Demo {config.MT5_LOGIN}",
+                "type": "cloud-g2",
+                "login": config.MT5_LOGIN,
+                "password": config.MT5_PASSWORD,
+                "server": config.MT5_SERVER,
+                "platform": "mt5",
+                "magic": 123456,
+            }
+        )
 
     if hesap.state != "DEPLOYED":
         await hesap.deploy()

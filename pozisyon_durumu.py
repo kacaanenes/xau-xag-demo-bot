@@ -6,7 +6,8 @@ from __future__ import annotations
 import json
 import os
 
-_DOSYA = os.path.join(os.path.dirname(__file__), "pozisyon_durumu.json")
+_HESAP_ETIKETI = os.getenv("HESAP_ETIKETI", "")  # ikinci bir hesapta calisirken state dosyasi carpismasin diye
+_DOSYA = os.path.join(os.path.dirname(__file__), f"pozisyon_durumu{_HESAP_ETIKETI}.json")
 
 
 def kaydet(veri: dict) -> None:

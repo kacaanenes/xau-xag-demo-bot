@@ -37,10 +37,28 @@ jobs:
           MT5_SERVER: ${{ secrets.MT5_SERVER }}
         run: python audnzd_main.py
 
+      - name: "[Hesap 2 - 10000 USD] XAU/XAG botunu calistir"
+        env:
+          METAAPI_TOKEN: ${{ secrets.METAAPI_TOKEN }}
+          MT5_LOGIN: ${{ secrets.MT5_LOGIN_2 }}
+          MT5_PASSWORD: ${{ secrets.MT5_PASSWORD_2 }}
+          MT5_SERVER: ${{ secrets.MT5_SERVER_2 }}
+          HESAP_ETIKETI: "_hesap2"
+        run: python main.py
+
+      - name: "[Hesap 2 - 10000 USD] AUDNZD botunu calistir"
+        env:
+          METAAPI_TOKEN: ${{ secrets.METAAPI_TOKEN }}
+          MT5_LOGIN: ${{ secrets.MT5_LOGIN_2 }}
+          MT5_PASSWORD: ${{ secrets.MT5_PASSWORD_2 }}
+          MT5_SERVER: ${{ secrets.MT5_SERVER_2 }}
+          HESAP_ETIKETI: "_hesap2"
+        run: python audnzd_main.py
+
       - name: Pozisyon durumunu commitle
         run: |
           git config user.name "xau-xag-bot"
           git config user.email "bot@users.noreply.github.com"
-          git add pozisyon_durumu.json 2>/dev/null || true
+          git add pozisyon_durumu.json pozisyon_durumu_hesap2.json 2>/dev/null || true
           git diff --cached --quiet || git commit -m "Pozisyon durumu guncellendi"
           git push
