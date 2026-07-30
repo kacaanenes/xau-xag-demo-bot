@@ -29,14 +29,6 @@ jobs:
           MT5_SERVER: ${{ secrets.MT5_SERVER }}
         run: python main.py
 
-      - name: AUDNZD botunu calistir
-        env:
-          METAAPI_TOKEN: ${{ secrets.METAAPI_TOKEN }}
-          MT5_LOGIN: ${{ secrets.MT5_LOGIN }}
-          MT5_PASSWORD: ${{ secrets.MT5_PASSWORD }}
-          MT5_SERVER: ${{ secrets.MT5_SERVER }}
-        run: python audnzd_main.py
-
       - name: "[Hesap 2 - 10000 USD] XAU/XAG botunu calistir"
         env:
           METAAPI_TOKEN: ${{ secrets.METAAPI_TOKEN }}
