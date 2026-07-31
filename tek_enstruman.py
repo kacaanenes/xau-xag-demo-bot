@@ -139,7 +139,13 @@ class TekEnstrumanBot:
             return {"durum": "zaten_acik_pozisyon_var"}
 
         baglanti = await mt5_veri.baglanti_al()
-        bakiye = (await baglanti.get_account_information())["balance"]
+        hesap = await baglanti.get_account_information()
+        # BAKIYE degil OZSERMAYE: bakiye sadece kapanmis islemleri sayar,
+        # ozsermaye acik pozisyonlarin anlik zararini da icerir. Bakiye
+        # kullanilsaydi hesap 90.000'e dusse bile bakiye 99.958 kaldigi
+        # surece ayni buyuklukte risk alinirdi. Ozsermaye ile kayip
+        # arttikca pozisyonlar otomatik kuculur (ve toparlayinca buyur).
+        bakiye = hesap["equity"]
         fiyat = await baglanti.get_symbol_price(self.sembol)
 
         alis_mi = yon == "AL"

@@ -52,7 +52,8 @@ async def parite_islemi_ac(yon: str, rasyo_df, giris_orani: float, zaman_dilimi:
     baglanti = await mt5_veri.baglanti_al()
 
     hesap_bilgisi = await baglanti.get_account_information()
-    bakiye = hesap_bilgisi["balance"]
+    # BAKIYE degil OZSERMAYE - bkz. tek_enstruman.py'deki aciklama.
+    bakiye = hesap_bilgisi["equity"]
 
     xau_fiyat = await baglanti.get_symbol_price(mt5_veri.XAU_SEMBOL)
     xag_fiyat = await baglanti.get_symbol_price(mt5_veri.XAG_SEMBOL)

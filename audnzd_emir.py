@@ -39,7 +39,9 @@ async def pozisyon_ac(yon: str, df) -> dict:
 
     baglanti = await mt5_veri.baglanti_al()
     hesap_bilgisi = await baglanti.get_account_information()
-    bakiye = hesap_bilgisi["balance"]
+    # BAKIYE degil OZSERMAYE - bkz. tek_enstruman.py'deki aciklama:
+    # bakiye acik pozisyonlarin zararini gormezden gelir, ozsermaye gorur.
+    bakiye = hesap_bilgisi["equity"]
 
     fiyat = await baglanti.get_symbol_price(SEMBOL)
     alis_mi = yon == "AL"
