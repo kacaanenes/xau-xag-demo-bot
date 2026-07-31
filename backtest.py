@@ -79,7 +79,8 @@ def pandas_nan(deger) -> bool:
 
 def _pozisyon_simulasyonu(df, yon_serisi, sl_atr_carpani: float, risk_odul_orani: float, sinyal_tersine_cikis: bool,
                            kapanis_bazli_atr: bool = False,
-                           basabas_r: float | None = None, iz_atr_carpani: float | None = None):
+                           basabas_r: float | None = None, iz_atr_carpani: float | None = None,
+                           izinli_saatler: range | tuple | None = None):
     """basabas_r: kar, baslangic riskinin bu katina ulasinca stop girise
     cekilir (o andan sonra islem en kotu basabas kapanir).
     iz_atr_carpani: stop, fiyatin bu kadar ATR gerisini izler (iz suren
@@ -142,6 +143,11 @@ def _pozisyon_simulasyonu(df, yon_serisi, sl_atr_carpani: float, risk_odul_orani
                 })
                 pozisyon = None
 
+        # Saat filtresi SADECE yeni giriste uygulanir - acik pozisyon,
+        # izinli saat disina cikilsa bile kendi stop/hedefine kadar yonetilir.
+        if izinli_saatler is not None and df.index[i].hour not in izinli_saatler:
+            continue
+
         if pozisyon is None and yon_serisi[i] is not None:
             atr_deger = atr.iloc[i]
             stop_mesafesi = sl_atr_carpani * atr_deger
@@ -180,19 +186,19 @@ def _ozet_hesapla(islemler) -> dict:
 def confluence_backtest(df, esik: int = 4, sl_atr_carpani: float = 1.5, risk_odul_orani: float = 1.5,
                          sinyal_tersine_cikis: bool = True, kapanis_bazli_atr: bool = False,
                          gostergeler: tuple = _TUM_GOSTERGELER, basabas_r: float | None = None,
-                         iz_atr_carpani: float | None = None) -> dict:
+                         iz_atr_carpani: float | None = None, izinli_saatler=None) -> dict:
     yon_serisi = _yon_serisi_confluence(df, esik, gostergeler)
     islemler = _pozisyon_simulasyonu(df, yon_serisi, sl_atr_carpani, risk_odul_orani, sinyal_tersine_cikis,
-                                      kapanis_bazli_atr, basabas_r, iz_atr_carpani)
+                                      kapanis_bazli_atr, basabas_r, iz_atr_carpani, izinli_saatler)
     return _ozet_hesapla(islemler)
 
 
 def mean_reversion_backtest(df, periyot: int = 20, sapma: float = 2.0, sl_atr_carpani: float = 1.5,
                              risk_odul_orani: float = 1.5, sinyal_tersine_cikis: bool = False,
                              kapanis_bazli_atr: bool = False, basabas_r: float | None = None,
-                             iz_atr_carpani: float | None = None) -> dict:
+                             iz_atr_carpani: float | None = None, izinli_saatler=None) -> dict:
     yon_serisi = _yon_serisi_mean_reversion(df, periyot, sapma)
-    islemler = _pozisyon_simulasyonu(df, yon_serisi, sl_atr_carpani, risk_odul_orani, sinyal_tersine_cikis, kapanis_bazli_atr, basabas_r, iz_atr_carpani)
+    islemler = _pozisyon_simulasyonu(df, yon_serisi, sl_atr_carpani, risk_odul_orani, sinyal_tersine_cikis, kapanis_bazli_atr, basabas_r, iz_atr_carpani, izinli_saatler)
     return _ozet_hesapla(islemler)
 
 

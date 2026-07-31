@@ -23,6 +23,10 @@ BOT = TekEnstrumanBot(
     kontrat_buyuklugu=5000,
     strateji="meanrev",
     risk_odul_orani=2.0,
+    # Sadece COMEX'in aktif oldugu saatlerde giris (rollover saati 21
+    # haric). Olculdu: Asya seansinda acilan islemler %26 isabetle
+    # zarardaydi; bu pencereye kisitlayinca isabet %68'e cikti.
+    izinli_saatler=tuple(list(range(12, 21)) + [22, 23]),
 )
 
 

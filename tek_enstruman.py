@@ -8,6 +8,8 @@ Strateji tipi enstrumanin OLCULEN karakterine gore secilir (varyans orani
 SADECE demo hesap icindir."""
 from __future__ import annotations
 
+import datetime as dt
+
 import backtest
 import gosterim
 import mt5_veri
@@ -17,7 +19,7 @@ import risk
 class TekEnstrumanBot:
     def __init__(self, sembol: str, kontrat_buyuklugu: float, strateji: str,
                  esik: int = 5, risk_odul_orani: float = 1.5, zaman_dilimi: str = "1h",
-                 basabas_r: float | None = 1.0):
+                 basabas_r: float | None = 1.0, izinli_saatler: tuple | None = None):
         if strateji not in ("meanrev", "trend"):
             raise ValueError(f"bilinmeyen strateji: {strateji}")
         self.sembol = sembol
@@ -26,6 +28,10 @@ class TekEnstrumanBot:
         self.esik = esik
         self.risk_odul_orani = risk_odul_orani
         self.zaman_dilimi = zaman_dilimi
+        # Hangi UTC saatlerinde YENI pozisyon acilabilecegi. Acik pozisyon
+        # bu saatlerin disina cikilsa bile kendi stop/hedefine kadar
+        # yonetilmeye devam eder - filtre sadece girisi kisitlar.
+        self.izinli_saatler = izinli_saatler
         # Kar, baslangic riskinin bu katina ulasinca stop girise cekilir.
         # XAGUSD'de olculdu: +%32.27 -> +%37.61 (iki yarida da pozitif).
         # Iz suren stop ayrica denendi ve DAHA KOTU cikti (+%29.69), bu
@@ -143,6 +149,12 @@ class TekEnstrumanBot:
         if yon is None:
             print("  Pozisyon yok, sinyal de yok - beklemede.")
             return
+
+        if self.izinli_saatler is not None:
+            saat = dt.datetime.now(dt.timezone.utc).hour
+            if saat not in self.izinli_saatler:
+                print(f"  Sinyal var ({yon}) ama saat {saat:02d}:xx UTC islem penceresi disinda - atlaniyor.")
+                return
 
         await self._ac_ve_yazdir(yon, df)
 
