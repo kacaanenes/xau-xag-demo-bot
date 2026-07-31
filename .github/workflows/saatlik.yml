@@ -34,6 +34,8 @@ jobs:
           MT5_LOGIN: ${{ secrets.MT5_LOGIN }}
           MT5_PASSWORD: ${{ secrets.MT5_PASSWORD }}
           MT5_SERVER: ${{ secrets.MT5_SERVER }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python xau_main.py
 
       - name: XAGUSD botunu calistir
@@ -43,6 +45,8 @@ jobs:
           MT5_LOGIN: ${{ secrets.MT5_LOGIN }}
           MT5_PASSWORD: ${{ secrets.MT5_PASSWORD }}
           MT5_SERVER: ${{ secrets.MT5_SERVER }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python xag_main.py
 
       - name: "[Hesap 2 - 10000 USD] AUDNZD botunu calistir"
@@ -52,6 +56,8 @@ jobs:
           MT5_LOGIN: ${{ secrets.MT5_LOGIN_2 }}
           MT5_PASSWORD: ${{ secrets.MT5_PASSWORD_2 }}
           MT5_SERVER: ${{ secrets.MT5_SERVER_2 }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           HESAP_ETIKETI: "_hesap2"
         run: python audnzd_main.py
 

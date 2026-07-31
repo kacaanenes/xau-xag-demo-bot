@@ -14,6 +14,7 @@ import backtest
 import gosterim
 import mt5_veri
 import risk
+import telegram_bildirim
 
 
 def _tamamlanmis_barlar(df):
@@ -103,6 +104,7 @@ class TekEnstrumanBot:
         await baglanti.modify_position(pozisyon["id"], stop_loss=giris,
                                         take_profit=pozisyon.get("takeProfit"))
         print(f"  BASABAS: kar 1R'ye ulasti, stop girise cekildi ({giris:.5f}) - bu islem artik zarar edemez.")
+        telegram_bildirim.basabasa_cekildi(self.sembol, giris)
         return True
 
     def _yon_hesapla(self, df) -> str | None:
@@ -147,6 +149,8 @@ class TekEnstrumanBot:
 
         emir_fn = baglanti.create_market_buy_order if alis_mi else baglanti.create_market_sell_order
         sonuc = await emir_fn(self.sembol, lot, stop_hedef["stop_loss"], stop_hedef["take_profit"])
+        telegram_bildirim.pozisyon_acildi(self.sembol, yon, lot, giris,
+                                           stop_hedef["stop_loss"], stop_hedef["take_profit"], bakiye)
         return {"durum": "islem_acildi", "yon": yon, "giris": giris, "lot": lot, **stop_hedef, "sonuc": sonuc}
 
     async def calistir(self) -> None:
@@ -170,14 +174,18 @@ class TekEnstrumanBot:
             # seviyeleri sinyal fiyatina gore yeniden kurulmali.
             if gosterim_mi and yon is not None:
                 print(f"  GERCEK SINYAL GELDI ({yon}) - gosterim pozisyonu kapatilip sinyale gore aciliyor...")
+                kz = await self.kar_zarar()
                 print(f"  Kapama: {(await self.pozisyonu_kapat())['stringCode']}")
+                telegram_bildirim.pozisyon_kapandi(self.sembol, mevcut, kz, "gercek sinyal geldi, yerini strateji pozisyonu aldi")
                 gosterim.isareti_kaldir(self.sembol)
                 await self._ac_ve_yazdir(yon, df)
                 return
 
             if self.sinyal_tersine_cikis and yon is not None and yon != mevcut:
                 print("  Sinyal ters dondu, kapatiliyor...")
+                kz = await self.kar_zarar()
                 print(f"  Kapama: {(await self.pozisyonu_kapat())['stringCode']}")
+                telegram_bildirim.pozisyon_kapandi(self.sembol, mevcut, kz, "sinyal ters dondu")
                 gosterim.isareti_kaldir(self.sembol)
             else:
                 print("  MT5'in kendi stop/hedefiyle acik kaliyor.")
