@@ -1,8 +1,13 @@
-name: Saatlik Demo Botlari (XAU/XAG + AUDNZD)
+name: Demo Botlari (XAU/XAG + AUDNZD) - 15dk
 
 on:
   schedule:
-    - cron: "5 * * * *"
+    # 15 dakikada bir. GitHub'in zamanlanmis tetiklemesi yogunlukta
+    # gecikir/atlar (bilinen sinirlama) - saatlik calisirken 10 gunde
+    # acilmasi gereken 10 islemin neredeyse hepsi kacirildi. Sik denemek,
+    # atlanan tetiklemelerin etkisini azaltir: bir kosu kacsa bile bir
+    # sonraki 15 dakika icinde durum yakalanir.
+    - cron: "*/15 * * * *"
   workflow_dispatch: {}
 
 permissions:
