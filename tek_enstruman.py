@@ -9,6 +9,7 @@ SADECE demo hesap icindir."""
 from __future__ import annotations
 
 import backtest
+import gosterim
 import mt5_veri
 import risk
 
@@ -73,18 +74,36 @@ class TekEnstrumanBot:
 
         mevcut = await self.mevcut_pozisyon_yonu()
         if mevcut is not None:
-            print(f"  Acik pozisyon: {mevcut} | kar/zarar: {await self.kar_zarar():+.2f} USD")
+            gosterim_mi = gosterim.gosterim_mi(self.sembol)
+            etiket = " [gosterim]" if gosterim_mi else ""
+            print(f"  Acik pozisyon: {mevcut}{etiket} | kar/zarar: {await self.kar_zarar():+.2f} USD")
+
+            # Gosterim pozisyonu, GERCEK sinyal geldigi anda yerini stratejinin
+            # kendi pozisyonuna birakir - yonu ayni olsa bile, cunku stop/hedef
+            # seviyeleri sinyal fiyatina gore yeniden kurulmali.
+            if gosterim_mi and yon is not None:
+                print(f"  GERCEK SINYAL GELDI ({yon}) - gosterim pozisyonu kapatilip sinyale gore aciliyor...")
+                print(f"  Kapama: {(await self.pozisyonu_kapat())['stringCode']}")
+                gosterim.isareti_kaldir(self.sembol)
+                await self._ac_ve_yazdir(yon, df)
+                return
+
             if yon is not None and yon != mevcut:
                 print("  Sinyal ters dondu, kapatiliyor...")
                 print(f"  Kapama: {(await self.pozisyonu_kapat())['stringCode']}")
+                gosterim.isareti_kaldir(self.sembol)
             else:
                 print("  MT5'in kendi stop/hedefiyle acik kaliyor.")
             return
 
+        gosterim.isareti_kaldir(self.sembol)  # pozisyon kapanmis, isaret bayat
         if yon is None:
             print("  Pozisyon yok, sinyal de yok - beklemede.")
             return
 
+        await self._ac_ve_yazdir(yon, df)
+
+    async def _ac_ve_yazdir(self, yon: str, df) -> None:
         sonuc = await self.pozisyon_ac(yon, df)
         if sonuc["durum"] == "islem_acildi":
             print(f"  ACILDI: {yon} {sonuc['lot']} lot @ {sonuc['giris']:.5f} | "
