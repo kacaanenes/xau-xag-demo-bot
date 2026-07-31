@@ -20,18 +20,22 @@ RATIO_RISK_ODUL_ORANI = 2.0  # mean-reversion icin olculen en iyi risk/odul
 XAU_KONTRAT_BUYUKLUGU = 100  # oz/lot
 XAG_KONTRAT_BUYUKLUGU = 5000  # oz/lot
 
-# Sabit lot yerine, stop mesafesi ne olursa olsun her bacakta ayni dolar
-# riskini hedefleyen dinamik lot. Boylece genis stop -> kucuk lot,
-# dar stop -> buyuk lot; sabit lotla oynaklik degistikce kontrolsuzce
-# degisen risk sorunu ortadan kalkiyor.
-HEDEF_RISK_USD = 30.0
+# Sabit dolar riski yerine, hesap bakiyesinin YUZDESI kadar risk hedeflenir.
+# Sabit $30, 100.000 USD hesapta %0.03 gibi anlamsiz kucuk bir risk demekti
+# (bu yuzden kazaniIrken bile kazanc cuzi kaliyordu) - %1 (profesyonel risk
+# yonetiminde "dusuk ama anlamli" kabul edilen seviye), hesap buyuklugune
+# gore olcekleniyor: genis stop -> kucuk lot, dar stop -> buyuk lot, ama
+# risk her zaman bakiyenin sabit bir yuzdesi kalir.
+RISK_YUZDESI = 0.01  # bakiyenin %1'i
 MIN_LOT = 0.01
 LOT_ADIMI = 0.01
 
 
-def lot_hesapla(stop_mesafesi_fiyat: float, kontrat_buyuklugu: float, hedef_risk_usd: float = HEDEF_RISK_USD) -> float:
+def lot_hesapla(stop_mesafesi_fiyat: float, kontrat_buyuklugu: float, bakiye: float,
+                 risk_yuzdesi: float = RISK_YUZDESI) -> float:
     if stop_mesafesi_fiyat <= 0:
         return MIN_LOT
+    hedef_risk_usd = bakiye * risk_yuzdesi
     lot_ham = hedef_risk_usd / (stop_mesafesi_fiyat * kontrat_buyuklugu)
     lot = round(lot_ham / LOT_ADIMI) * LOT_ADIMI
     return max(round(lot, 2), MIN_LOT)

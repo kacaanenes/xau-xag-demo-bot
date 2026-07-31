@@ -38,13 +38,16 @@ async def pozisyon_ac(yon: str, df) -> dict:
         return {"durum": "zaten_acik_pozisyon_var"}
 
     baglanti = await mt5_veri.baglanti_al()
+    hesap_bilgisi = await baglanti.get_account_information()
+    bakiye = hesap_bilgisi["balance"]
+
     fiyat = await baglanti.get_symbol_price(SEMBOL)
     alis_mi = yon == "AL"
     giris = fiyat["ask"] if alis_mi else fiyat["bid"]
 
     stop_hedef = risk.stop_ve_hedef_hesapla(df, giris, alis_mi, atr_carpani=1.5)
     stop_mesafesi = abs(giris - stop_hedef["stop_loss"])
-    lot = risk.lot_hesapla(stop_mesafesi, KONTRAT_BUYUKLUGU)
+    lot = risk.lot_hesapla(stop_mesafesi, KONTRAT_BUYUKLUGU, bakiye)
 
     if alis_mi:
         sonuc = await baglanti.create_market_buy_order(SEMBOL, lot, stop_hedef["stop_loss"], stop_hedef["take_profit"])

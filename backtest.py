@@ -11,7 +11,14 @@ XAU_KONTRAT_BUYUKLUGU = 100  # oz/lot
 XAG_KONTRAT_BUYUKLUGU = 5000  # oz/lot
 
 
-def _yon_serisi_confluence(df, esik: int = 4):
+_TUM_GOSTERGELER = ("EMA", "MACD", "RSI", "SuperTrend", "MOST", "Bollinger")
+
+
+def _yon_serisi_confluence(df, esik: int = 4, gostergeler: tuple = _TUM_GOSTERGELER):
+    """gostergeler: hangi oylarin dahil edilecegini secmek icin - bazi
+    gostergeler birbiriyle yuksek korelasyonlu (ornegin RSI-Bollinger 0.79),
+    yani '6 bagimsiz oy' degil, kismen ayni sinyalin tekrari. Bunu test
+    etmek icin alt kumeler denenebilir."""
     kapanis = df["close"]
     ema20 = teknik.ema_serisi(kapanis, 20)
     ema50 = teknik.ema_serisi(kapanis, 50)
@@ -21,17 +28,21 @@ def _yon_serisi_confluence(df, esik: int = 4):
     st_df = teknik.supertrend_hesapla(df, 10, 3.0)
     most_df = teknik.most_hesapla(kapanis, 9, 2.0)
 
+    tum_oylar = {
+        "EMA": ema20 > ema50,
+        "MACD": macd_cizgisi > macd_sinyal,
+        "RSI": rsi > 50,
+        "SuperTrend": st_df["yukselis_mi"],
+        "MOST": most_df["yukselis_mi"],
+        "Bollinger": kapanis > orta_bant,
+    }
+    secili_oylar = [tum_oylar[g] for g in gostergeler]
+    n = len(secili_oylar)
+
     yonler = []
     for i in range(len(df)):
-        yukselis_oyu = sum([
-            ema20.iloc[i] > ema50.iloc[i],
-            macd_cizgisi.iloc[i] > macd_sinyal.iloc[i],
-            rsi.iloc[i] > 50,
-            bool(st_df["yukselis_mi"].iloc[i]),
-            bool(most_df["yukselis_mi"].iloc[i]),
-            kapanis.iloc[i] > orta_bant.iloc[i],
-        ])
-        dusus_oyu = 6 - yukselis_oyu
+        yukselis_oyu = sum(bool(oy.iloc[i]) for oy in secili_oylar)
+        dusus_oyu = n - yukselis_oyu
         if yukselis_oyu >= esik:
             yonler.append("AL")
         elif dusus_oyu >= esik:
@@ -143,8 +154,9 @@ def _ozet_hesapla(islemler) -> dict:
 
 
 def confluence_backtest(df, esik: int = 4, sl_atr_carpani: float = 1.5, risk_odul_orani: float = 1.5,
-                         sinyal_tersine_cikis: bool = True, kapanis_bazli_atr: bool = False) -> dict:
-    yon_serisi = _yon_serisi_confluence(df, esik)
+                         sinyal_tersine_cikis: bool = True, kapanis_bazli_atr: bool = False,
+                         gostergeler: tuple = _TUM_GOSTERGELER) -> dict:
+    yon_serisi = _yon_serisi_confluence(df, esik, gostergeler)
     islemler = _pozisyon_simulasyonu(df, yon_serisi, sl_atr_carpani, risk_odul_orani, sinyal_tersine_cikis, kapanis_bazli_atr)
     return _ozet_hesapla(islemler)
 

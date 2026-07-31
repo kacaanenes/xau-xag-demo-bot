@@ -51,6 +51,9 @@ async def parite_islemi_ac(yon: str, rasyo_df, giris_orani: float, zaman_dilimi:
 
     baglanti = await mt5_veri.baglanti_al()
 
+    hesap_bilgisi = await baglanti.get_account_information()
+    bakiye = hesap_bilgisi["balance"]
+
     xau_fiyat = await baglanti.get_symbol_price(mt5_veri.XAU_SEMBOL)
     xag_fiyat = await baglanti.get_symbol_price(mt5_veri.XAG_SEMBOL)
     xau_df = await mt5_veri.mum_verisi_getir(mt5_veri.XAU_SEMBOL, zaman_dilimi, 100)
@@ -69,13 +72,13 @@ async def parite_islemi_ac(yon: str, rasyo_df, giris_orani: float, zaman_dilimi:
     xau_risk = risk.stop_ve_hedef_hesapla(xau_df, xau_giris, xau_alis_mi, risk.GUVENLIK_AGI_CARPANI)
     xag_risk = risk.stop_ve_hedef_hesapla(xag_df, xag_giris, xag_alis_mi, risk.GUVENLIK_AGI_CARPANI)
 
-    # Sabit lot yerine, stop mesafesine gore dinamik lot: genis stop -> kucuk
-    # lot, dar stop -> buyuk lot; boylece her bacakta hedeflenen dolar riski
-    # (varsayilan $30) sabit kalir, oynaklik degistikce kontrolsuzce degismez.
+    # Sabit dolar yerine bakiyenin %1'i kadar risk hedeflenir: genis stop ->
+    # kucuk lot, dar stop -> buyuk lot, ama risk her zaman bakiyeye oranli
+    # sabit kalir (hesap buyudukce/kuculdukce otomatik olcekler).
     xau_stop_mesafesi = abs(xau_giris - xau_risk["stop_loss"])
     xag_stop_mesafesi = abs(xag_giris - xag_risk["stop_loss"])
-    xau_lot = risk.lot_hesapla(xau_stop_mesafesi, risk.XAU_KONTRAT_BUYUKLUGU)
-    xag_lot = risk.lot_hesapla(xag_stop_mesafesi, risk.XAG_KONTRAT_BUYUKLUGU)
+    xau_lot = risk.lot_hesapla(xau_stop_mesafesi, risk.XAU_KONTRAT_BUYUKLUGU, bakiye)
+    xag_lot = risk.lot_hesapla(xag_stop_mesafesi, risk.XAG_KONTRAT_BUYUKLUGU, bakiye)
 
     if xau_alis_mi:
         xau_sonuc = await baglanti.create_market_buy_order(
