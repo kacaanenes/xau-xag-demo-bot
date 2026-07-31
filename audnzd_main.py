@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import asyncio
 
+from metaapi_cloud_sdk.clients.metaapi.trade_exception import TradeException
+
 import audnzd_emir
 import backtest
 import mt5_veri
@@ -30,8 +32,11 @@ async def calistir() -> None:
 
         if yon_su_an is not None and yon_su_an != mevcut_yon:
             print("Sinyal ters dondu, kapatiliyor...")
-            sonuc = await audnzd_emir.pozisyonu_kapat()
-            print(f"Kapama sonucu: {sonuc}")
+            try:
+                sonuc = await audnzd_emir.pozisyonu_kapat()
+                print(f"Kapama sonucu: {sonuc}")
+            except TradeException as e:
+                print(f"Kapatma su an basarisiz ({e}), piyasa kapali olabilir - bir sonraki calistirmada tekrar denenecek.")
         else:
             print("Pozisyon destekleniyor (veya notr), MT5'in kendi stop/hedefiyle acik kaliyor.")
         return
@@ -40,8 +45,11 @@ async def calistir() -> None:
         print("Pozisyon yok, sinyal de yok - beklemede.")
         return
 
-    sonuc = await audnzd_emir.pozisyon_ac(yon_su_an, df)
-    print(f"Islem sonucu: {sonuc}")
+    try:
+        sonuc = await audnzd_emir.pozisyon_ac(yon_su_an, df)
+        print(f"Islem sonucu: {sonuc}")
+    except TradeException as e:
+        print(f"Islem acma su an basarisiz ({e}), piyasa kapali olabilir - bir sonraki calistirmada tekrar denenecek.")
 
 
 if __name__ == "__main__":

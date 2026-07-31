@@ -11,6 +11,8 @@ from __future__ import annotations
 
 import asyncio
 
+from metaapi_cloud_sdk.clients.metaapi.trade_exception import TradeException
+
 import backtest
 import emir
 import mt5_veri
@@ -44,8 +46,11 @@ async def calistir() -> None:
 
         if rasyo_tetiklendi:
             print("Rasyo kendi stop/hedef seviyesine ulasti, kapatiliyor...")
-            kapama_sonucu = await emir.parite_pozisyonunu_kapat()
-            print(f"Kapama sonucu: {kapama_sonucu}")
+            try:
+                kapama_sonucu = await emir.parite_pozisyonunu_kapat()
+                print(f"Kapama sonucu: {kapama_sonucu}")
+            except TradeException as e:
+                print(f"Kapatma su an basarisiz ({e}), piyasa kapali olabilir - bir sonraki calistirmada tekrar denenecek.")
         else:
             print(f"Acik pozisyon ({mevcut_yon}) hala stop/hedef arasinda, acik kaliyor.")
         return
@@ -54,8 +59,11 @@ async def calistir() -> None:
         print("Pozisyon yok, sinyal de yok - beklemede.")
         return
 
-    islem_sonucu = await emir.parite_islemi_ac(yon_su_an, df, rasyo_son, ZAMAN_DILIMI)
-    print(f"Islem sonucu: {islem_sonucu}")
+    try:
+        islem_sonucu = await emir.parite_islemi_ac(yon_su_an, df, rasyo_son, ZAMAN_DILIMI)
+        print(f"Islem sonucu: {islem_sonucu}")
+    except TradeException as e:
+        print(f"Islem acma su an basarisiz ({e}), piyasa kapali olabilir - bir sonraki calistirmada tekrar denenecek.")
 
 
 if __name__ == "__main__":
