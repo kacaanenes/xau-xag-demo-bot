@@ -16,7 +16,8 @@ import risk
 
 class TekEnstrumanBot:
     def __init__(self, sembol: str, kontrat_buyuklugu: float, strateji: str,
-                 esik: int = 5, risk_odul_orani: float = 1.5, zaman_dilimi: str = "1h"):
+                 esik: int = 5, risk_odul_orani: float = 1.5, zaman_dilimi: str = "1h",
+                 basabas_r: float | None = 1.0):
         if strateji not in ("meanrev", "trend"):
             raise ValueError(f"bilinmeyen strateji: {strateji}")
         self.sembol = sembol
@@ -25,16 +26,56 @@ class TekEnstrumanBot:
         self.esik = esik
         self.risk_odul_orani = risk_odul_orani
         self.zaman_dilimi = zaman_dilimi
+        # Kar, baslangic riskinin bu katina ulasinca stop girise cekilir.
+        # XAGUSD'de olculdu: +%32.27 -> +%37.61 (iki yarida da pozitif).
+        # Iz suren stop ayrica denendi ve DAHA KOTU cikti (+%29.69), bu
+        # yuzden sadece basabas korumasi var, surekli izleyen stop yok.
+        self.basabas_r = basabas_r
+
+    async def _basabasa_cek(self, pozisyon: dict) -> bool:
+        """Kar 1R'ye ulastiysa stop'u girise ceker. Zaten girise (veya
+        otesine) cekilmisse bir sey yapmaz."""
+        if self.basabas_r is None:
+            return False
+
+        giris = pozisyon["openPrice"]
+        stop = pozisyon.get("stopLoss")
+        if stop is None:
+            return False
+
+        alis_mi = pozisyon["type"] == "POSITION_TYPE_BUY"
+        r = abs(giris - stop)
+        if r <= 0:
+            return False
+
+        baglanti = await mt5_veri.baglanti_al()
+        fiyat = await baglanti.get_symbol_price(self.sembol)
+        simdi = fiyat["bid"] if alis_mi else fiyat["ask"]
+
+        if alis_mi:
+            if stop >= giris or simdi < giris + self.basabas_r * r:
+                return False
+        else:
+            if stop <= giris or simdi > giris - self.basabas_r * r:
+                return False
+
+        await baglanti.modify_position(pozisyon["id"], stop_loss=giris,
+                                        take_profit=pozisyon.get("takeProfit"))
+        print(f"  BASABAS: kar 1R'ye ulasti, stop girise cekildi ({giris:.5f}) - bu islem artik zarar edemez.")
+        return True
 
     def _yon_hesapla(self, df) -> str | None:
         if self.strateji == "meanrev":
             return backtest._yon_serisi_mean_reversion(df)[-1]
         return backtest._yon_serisi_confluence(df, self.esik)[-1]
 
-    async def mevcut_pozisyon_yonu(self) -> str | None:
+    async def _pozisyon_getir(self) -> dict | None:
         baglanti = await mt5_veri.baglanti_al()
         pozisyonlar = await baglanti.get_positions()
-        pozisyon = next((p for p in pozisyonlar if p["symbol"] == self.sembol), None)
+        return next((p for p in pozisyonlar if p["symbol"] == self.sembol), None)
+
+    async def mevcut_pozisyon_yonu(self) -> str | None:
+        pozisyon = await self._pozisyon_getir()
         if pozisyon is None:
             return None
         return "AL" if pozisyon["type"] == "POSITION_TYPE_BUY" else "SAT"
@@ -72,11 +113,13 @@ class TekEnstrumanBot:
         yon = self._yon_hesapla(df)
         print(f"{self.sembol} {df['close'].iloc[-1]:.5f} | {self.strateji} sinyali: {yon or 'YOK'}")
 
-        mevcut = await self.mevcut_pozisyon_yonu()
+        acik = await self._pozisyon_getir()
+        mevcut = None if acik is None else ("AL" if acik["type"] == "POSITION_TYPE_BUY" else "SAT")
         if mevcut is not None:
             gosterim_mi = gosterim.gosterim_mi(self.sembol)
             etiket = " [gosterim]" if gosterim_mi else ""
             print(f"  Acik pozisyon: {mevcut}{etiket} | kar/zarar: {await self.kar_zarar():+.2f} USD")
+            await self._basabasa_cek(acik)
 
             # Gosterim pozisyonu, GERCEK sinyal geldigi anda yerini stratejinin
             # kendi pozisyonuna birakir - yonu ayni olsa bile, cunku stop/hedef

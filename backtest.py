@@ -78,7 +78,16 @@ def pandas_nan(deger) -> bool:
 
 
 def _pozisyon_simulasyonu(df, yon_serisi, sl_atr_carpani: float, risk_odul_orani: float, sinyal_tersine_cikis: bool,
-                           kapanis_bazli_atr: bool = False):
+                           kapanis_bazli_atr: bool = False,
+                           basabas_r: float | None = None, iz_atr_carpani: float | None = None):
+    """basabas_r: kar, baslangic riskinin bu katina ulasinca stop girise
+    cekilir (o andan sonra islem en kotu basabas kapanir).
+    iz_atr_carpani: stop, fiyatin bu kadar ATR gerisini izler (iz suren
+    stop). Ikisi de None ise klasik sabit stop/hedef davranisi korunur.
+
+    UYARI: iz suren stop sezgisel olarak "kari korur" gibi gorunse de
+    kazanan islemleri erken kesip toplam getiriyi DUSUREBILIR - bu yuzden
+    varsayilan olarak KAPALI, acmadan once backtest ile karsilastirilmali."""
     kapanis = df["close"]
     atr = teknik.atr_kapanis_bazli(kapanis, 14) if kapanis_bazli_atr else teknik.atr_serisi(df, 14)
 
@@ -89,6 +98,20 @@ def _pozisyon_simulasyonu(df, yon_serisi, sl_atr_carpani: float, risk_odul_orani
         fiyat = kapanis.iloc[i]
 
         if pozisyon is not None:
+            # Stop'u yukari/asagi cek (asla ters yone gevsetme)
+            if basabas_r is not None or iz_atr_carpani is not None:
+                r = pozisyon["baslangic_riski"]
+                if pozisyon["yon"] == "AL":
+                    if basabas_r is not None and fiyat >= pozisyon["giris_fiyat"] + basabas_r * r:
+                        pozisyon["stop"] = max(pozisyon["stop"], pozisyon["giris_fiyat"])
+                    if iz_atr_carpani is not None:
+                        pozisyon["stop"] = max(pozisyon["stop"], fiyat - iz_atr_carpani * atr.iloc[i])
+                else:
+                    if basabas_r is not None and fiyat <= pozisyon["giris_fiyat"] - basabas_r * r:
+                        pozisyon["stop"] = min(pozisyon["stop"], pozisyon["giris_fiyat"])
+                    if iz_atr_carpani is not None:
+                        pozisyon["stop"] = min(pozisyon["stop"], fiyat + iz_atr_carpani * atr.iloc[i])
+
             tetiklendi, sebep = False, None
             if pozisyon["yon"] == "AL":
                 if fiyat <= pozisyon["stop"]:
@@ -129,7 +152,8 @@ def _pozisyon_simulasyonu(df, yon_serisi, sl_atr_carpani: float, risk_odul_orani
             else:
                 stop = fiyat + stop_mesafesi
                 hedef = fiyat - hedef_mesafesi
-            pozisyon = {"yon": yon_serisi[i], "giris_fiyat": fiyat, "stop": stop, "hedef": hedef, "giris_i": i}
+            pozisyon = {"yon": yon_serisi[i], "giris_fiyat": fiyat, "stop": stop, "hedef": hedef,
+                        "giris_i": i, "baslangic_riski": stop_mesafesi}
 
     return islemler
 
@@ -163,9 +187,10 @@ def confluence_backtest(df, esik: int = 4, sl_atr_carpani: float = 1.5, risk_odu
 
 def mean_reversion_backtest(df, periyot: int = 20, sapma: float = 2.0, sl_atr_carpani: float = 1.5,
                              risk_odul_orani: float = 1.5, sinyal_tersine_cikis: bool = False,
-                             kapanis_bazli_atr: bool = False) -> dict:
+                             kapanis_bazli_atr: bool = False, basabas_r: float | None = None,
+                             iz_atr_carpani: float | None = None) -> dict:
     yon_serisi = _yon_serisi_mean_reversion(df, periyot, sapma)
-    islemler = _pozisyon_simulasyonu(df, yon_serisi, sl_atr_carpani, risk_odul_orani, sinyal_tersine_cikis, kapanis_bazli_atr)
+    islemler = _pozisyon_simulasyonu(df, yon_serisi, sl_atr_carpani, risk_odul_orani, sinyal_tersine_cikis, kapanis_bazli_atr, basabas_r, iz_atr_carpani)
     return _ozet_hesapla(islemler)
 
 
