@@ -41,10 +41,20 @@ def lot_hesapla(stop_mesafesi_fiyat: float, kontrat_buyuklugu: float, bakiye: fl
     return max(round(lot, 2), MIN_LOT)
 
 
-def stop_ve_hedef_hesapla(df, giris_fiyati: float, alis_mi: bool, atr_carpani: float = SL_ATR_CARPANI) -> dict:
-    atr = teknik.atr_serisi(df, 14).iloc[-1]
+def stop_ve_hedef_hesapla(df, giris_fiyati: float, alis_mi: bool, atr_carpani: float = SL_ATR_CARPANI,
+                           risk_odul_orani: float = RISK_ODUL_ORANI, kapanis_bazli_atr: bool = True) -> dict:
+    """kapanis_bazli_atr VARSAYILAN OLARAK True: tum stratejilerimiz
+    backtest'te kapanis-bazli ATR ile olculdu. Onceki halinde bu fonksiyon
+    her zaman yuksek/dusuk-bazli ATR kullaniyordu ve stoplar backtest'in
+    varsaydiginin ~2 kati genis cikiyordu (XAG'de 0.634 yerine 0.285
+    olmaliydi) - yani canli islem geometrisi olculen geometriden farkliydi.
+
+    risk_odul_orani da artik parametre: modul sabitine (1.5) sabitlenmisti,
+    botun kendi ayari (metallerde 2.0) hic kullanilmiyordu."""
+    atr = (teknik.atr_kapanis_bazli(df["close"], 14) if kapanis_bazli_atr
+           else teknik.atr_serisi(df, 14)).iloc[-1]
     stop_mesafesi = atr_carpani * atr
-    hedef_mesafesi = RISK_ODUL_ORANI * stop_mesafesi
+    hedef_mesafesi = risk_odul_orani * stop_mesafesi
 
     if alis_mi:
         stop = giris_fiyati - stop_mesafesi

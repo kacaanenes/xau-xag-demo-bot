@@ -47,7 +47,9 @@ async def pozisyon_ac(yon: str, df) -> dict:
     alis_mi = yon == "AL"
     giris = fiyat["ask"] if alis_mi else fiyat["bid"]
 
-    stop_hedef = risk.stop_ve_hedef_hesapla(df, giris, alis_mi, atr_carpani=1.5)
+    # AUDNZD backtest'i risk_odul_orani=1.5 ve kapanis-bazli ATR ile olculdu
+    stop_hedef = risk.stop_ve_hedef_hesapla(df, giris, alis_mi, atr_carpani=1.5,
+                                            risk_odul_orani=1.5)
     stop_mesafesi = abs(giris - stop_hedef["stop_loss"])
     lot = risk.lot_hesapla(stop_mesafesi, KONTRAT_BUYUKLUGU, bakiye)
 

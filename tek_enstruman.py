@@ -150,7 +150,8 @@ class TekEnstrumanBot:
 
         alis_mi = yon == "AL"
         giris = fiyat["ask"] if alis_mi else fiyat["bid"]
-        stop_hedef = risk.stop_ve_hedef_hesapla(df, giris, alis_mi, atr_carpani=1.5)
+        stop_hedef = risk.stop_ve_hedef_hesapla(df, giris, alis_mi, atr_carpani=1.5,
+                                                risk_odul_orani=self.risk_odul_orani)
         lot = risk.lot_hesapla(abs(giris - stop_hedef["stop_loss"]), self.kontrat_buyuklugu, bakiye)
 
         emir_fn = baglanti.create_market_buy_order if alis_mi else baglanti.create_market_sell_order
