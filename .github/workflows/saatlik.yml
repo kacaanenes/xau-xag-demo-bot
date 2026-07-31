@@ -2,12 +2,13 @@ name: Demo Botlari (XAU/XAG + AUDNZD) - 15dk
 
 on:
   schedule:
-    # 15 dakikada bir. GitHub'in zamanlanmis tetiklemesi yogunlukta
-    # gecikir/atlar (bilinen sinirlama) - saatlik calisirken 10 gunde
-    # acilmasi gereken 10 islemin neredeyse hepsi kacirildi. Sik denemek,
-    # atlanan tetiklemelerin etkisini azaltir: bir kosu kacsa bile bir
-    # sonraki 15 dakika icinde durum yakalanir.
-    - cron: "*/15 * * * *"
+    # 15 dakikada bir ama TUHAF dakikalarda (7/22/37/52), yuvarlak
+    # dakikalarda DEGIL. GitHub'in zamanlayicisi :00/:15/:30/:45
+    # slotlarinda asiri yuklenir (herkes oraya program yazar) ve bu
+    # slotlardaki isler ciddi gecikir ya da tamamen atlanir - "*/15" ile
+    # denendiginde 35 dakikada 3 tetikleme ust uste kacirildi. Yogun
+    # olmayan dakikalara kaydirmak, GitHub'in kendi onerdigi cozumdur.
+    - cron: "7,22,37,52 * * * *"
   workflow_dispatch: {}
 
 permissions:
