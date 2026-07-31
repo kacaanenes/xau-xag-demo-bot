@@ -16,6 +16,33 @@ import mt5_veri
 import risk
 
 
+def _tamamlanmis_barlar(df):
+    """MetaApi son bar olarak ICINDE BULUNULAN (tamamlanmamis) mumu doner -
+    onun 'close' degeri o anki fiyattir, bar kapanisi degil. Sinyali bunun
+    uzerinden hesaplamak, backtest'in olctugu davranistan sapar.
+
+    OLCULDU: saat ici anlik fiyata gore girmek, saatlik kapanisa gore
+    girmeye kiyasla belirgin daha kotu:
+      XAGUSD  +%39.92 -> +%25.34   (islem 31 -> 55, isabet %67.7 -> %52.7)
+      XAUUSD  +%13.49 ->  +%8.79   (islem 35 -> 58, isabet %57.1 -> %46.6)
+    Sebep: fiyat bandin disina saat icinde kisa sure cikip geri donuyor;
+    bunlar saatlik kapanista sinyal SAYILMAZDI - yani sahte sinyaller.
+
+    Bu fonksiyon tamamlanmamis son bari atarak sinyali her zaman son
+    KAPANMIS bardan hesaplatir."""
+    if len(df) < 2:
+        return df
+    son = df.index[-1]
+    simdi = dt.datetime.now(dt.timezone.utc)
+    # Son barin kapsadigi periyot henuz bitmemisse (bar baslangici, simdiki
+    # zamandan bir periyot geride degilse) o bar tamamlanmamistir.
+    if len(df) >= 2:
+        periyot = df.index[-1] - df.index[-2]
+        if son + periyot > simdi:
+            return df.iloc[:-1]
+    return df
+
+
 class TekEnstrumanBot:
     def __init__(self, sembol: str, kontrat_buyuklugu: float, strateji: str,
                  esik: int = 5, risk_odul_orani: float = 1.5, zaman_dilimi: str = "1h",
@@ -123,9 +150,12 @@ class TekEnstrumanBot:
         return {"durum": "islem_acildi", "yon": yon, "giris": giris, "lot": lot, **stop_hedef, "sonuc": sonuc}
 
     async def calistir(self) -> None:
-        df = await mt5_veri.mum_verisi_getir(self.sembol, self.zaman_dilimi, 200)
+        ham = await mt5_veri.mum_verisi_getir(self.sembol, self.zaman_dilimi, 200)
+        df = _tamamlanmis_barlar(ham)
         yon = self._yon_hesapla(df)
-        print(f"{self.sembol} {df['close'].iloc[-1]:.5f} | {self.strateji} sinyali: {yon or 'YOK'}")
+        print(f"{self.sembol} {ham['close'].iloc[-1]:.5f} "
+              f"(sinyal {df.index[-1].strftime('%H:%M')} kapanisindan: {df['close'].iloc[-1]:.5f}) "
+              f"| {self.strateji} sinyali: {yon or 'YOK'}")
 
         acik = await self._pozisyon_getir()
         mevcut = None if acik is None else ("AL" if acik["type"] == "POSITION_TYPE_BUY" else "SAT")
