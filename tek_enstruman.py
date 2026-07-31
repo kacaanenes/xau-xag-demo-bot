@@ -19,9 +19,17 @@ import risk
 class TekEnstrumanBot:
     def __init__(self, sembol: str, kontrat_buyuklugu: float, strateji: str,
                  esik: int = 5, risk_odul_orani: float = 1.5, zaman_dilimi: str = "1h",
-                 basabas_r: float | None = 1.0, izinli_saatler: tuple | None = None):
+                 basabas_r: float | None = 1.0, izinli_saatler: tuple | None = None,
+                 sinyal_tersine_cikis: bool = False):
         if strateji not in ("meanrev", "trend"):
             raise ValueError(f"bilinmeyen strateji: {strateji}")
+        # Sinyal ters dondugunde pozisyonu kapatmak, backtest'te AYRI bir
+        # varyant olarak olculur - canli kod ile backtest'in ayni sonucu
+        # vermesi icin bu ayarin ikisinde de AYNI olmasi sart. Metaller
+        # (meanrev) False ile olculdu: sinyal-tersine-cikis acikken sonuc
+        # daha kotuydu, cunku ortalamaya donus sinyali pozisyon acikken
+        # dogal olarak zayifliyor ve erken cikis yaratiyor.
+        self.sinyal_tersine_cikis = sinyal_tersine_cikis
         self.sembol = sembol
         self.kontrat_buyuklugu = kontrat_buyuklugu
         self.strateji = strateji
@@ -137,7 +145,7 @@ class TekEnstrumanBot:
                 await self._ac_ve_yazdir(yon, df)
                 return
 
-            if yon is not None and yon != mevcut:
+            if self.sinyal_tersine_cikis and yon is not None and yon != mevcut:
                 print("  Sinyal ters dondu, kapatiliyor...")
                 print(f"  Kapama: {(await self.pozisyonu_kapat())['stringCode']}")
                 gosterim.isareti_kaldir(self.sembol)
