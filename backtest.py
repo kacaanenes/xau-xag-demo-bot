@@ -179,9 +179,11 @@ def _ozet_hesapla(islemler) -> dict:
 
 def confluence_backtest(df, esik: int = 4, sl_atr_carpani: float = 1.5, risk_odul_orani: float = 1.5,
                          sinyal_tersine_cikis: bool = True, kapanis_bazli_atr: bool = False,
-                         gostergeler: tuple = _TUM_GOSTERGELER) -> dict:
+                         gostergeler: tuple = _TUM_GOSTERGELER, basabas_r: float | None = None,
+                         iz_atr_carpani: float | None = None) -> dict:
     yon_serisi = _yon_serisi_confluence(df, esik, gostergeler)
-    islemler = _pozisyon_simulasyonu(df, yon_serisi, sl_atr_carpani, risk_odul_orani, sinyal_tersine_cikis, kapanis_bazli_atr)
+    islemler = _pozisyon_simulasyonu(df, yon_serisi, sl_atr_carpani, risk_odul_orani, sinyal_tersine_cikis,
+                                      kapanis_bazli_atr, basabas_r, iz_atr_carpani)
     return _ozet_hesapla(islemler)
 
 
