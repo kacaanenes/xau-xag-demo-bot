@@ -60,12 +60,3 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           HESAP_ETIKETI: "_hesap2"
         run: python audnzd_main.py
-
-      - name: Pozisyon durumunu commitle
-        if: always()
-        run: |
-          git config user.name "xau-xag-bot"
-          git config user.email "bot@users.noreply.github.com"
-          git add pozisyon_durumu.json pozisyon_durumu_hesap2.json 2>/dev/null || true
-          git diff --cached --quiet || git commit -m "Pozisyon durumu guncellendi"
-          git push
