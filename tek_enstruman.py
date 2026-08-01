@@ -102,8 +102,40 @@ class TekEnstrumanBot:
             if stop <= giris or simdi > giris - self.basabas_r * r:
                 return False
 
-        await baglanti.modify_position(pozisyon["id"], stop_loss=giris,
-                                        take_profit=pozisyon.get("takeProfit"))
+        # --- BROKER KISITLARI -------------------------------------------
+        # MetaQuotes-Demo'da ikisi de 0, yani burada hicbir sey degismez.
+        # Gercek brokerde sifir degil ve bu kontroller olmazsa basabasa
+        # cekme TAM KRITIK ANDA hata verir.
+        sinir = await mt5_veri.sembol_sinirlari(self.sembol)
+        hedef = pozisyon.get("takeProfit")
+
+        # 1) DONDURMA BOLGESI: fiyat mevcut stop veya hedefe cok yakinsa
+        #    broker degisiklige hic izin vermez. Hata almak yerine bu turu
+        #    atla - 15 dakika sonra tekrar denenecek.
+        if sinir["dondurma"] > 0:
+            for ad, seviye in (("stop", stop), ("hedef", hedef)):
+                if seviye and abs(simdi - seviye) < sinir["dondurma"]:
+                    print(f"  BASABAS ERTELENDI: fiyat {ad} seviyesine {abs(simdi-seviye):.5f} "
+                          f"uzaklikta, brokerin dondurma mesafesi {sinir['dondurma']:.5f} - "
+                          f"emir su an degistirilemez, sonraki turda tekrar denenecek.")
+                    return False
+
+        # 2) ASGARI STOP MESAFESI: yeni stop (= giris fiyati) guncel fiyata
+        #    brokerin izin verdiginden yakinsa emir reddedilir. Bu, 1R'lik
+        #    kar brokerin asgari mesafesinden kucukse olur.
+        if abs(simdi - giris) < sinir["asgari_stop"]:
+            print(f"  BASABAS ERTELENDI: giris fiyati guncel fiyata {abs(simdi-giris):.5f} "
+                  f"uzaklikta, brokerin asgari stop mesafesi {sinir['asgari_stop']:.5f} - "
+                  f"fiyat biraz daha uzaklasinca cekilecek.")
+            return False
+
+        try:
+            await baglanti.modify_position(pozisyon["id"], stop_loss=giris, take_profit=hedef)
+        except Exception as exc:  # noqa: BLE001 - basabas basarisiz olsa da bot devam etmeli
+            print(f"  BASABAS BASARISIZ ({exc}) - pozisyon orijinal stopuyla devam ediyor, "
+                  f"sonraki turda tekrar denenecek.")
+            return False
+
         print(f"  BASABAS: kar 1R'ye ulasti, stop girise cekildi ({giris:.5f}) - bu islem artik zarar edemez.")
         telegram_bildirim.basabasa_cekildi(self.sembol, giris)
         return True
@@ -151,14 +183,22 @@ class TekEnstrumanBot:
 
         alis_mi = yon == "AL"
         giris = fiyat["ask"] if alis_mi else fiyat["bid"]
-        stop_hedef = risk.stop_ve_hedef_hesapla(df, giris, alis_mi, atr_carpani=1.5,
-                                                risk_odul_orani=self.risk_odul_orani)
+        ham = risk.stop_ve_hedef_hesapla(df, giris, alis_mi, atr_carpani=1.5,
+                                          risk_odul_orani=self.risk_odul_orani)
+        # Brokerin asgari stop mesafesine uydur - ihlal edilirse emrin TAMAMI
+        # reddedilir, yani sinyal kacar. Gerekirse stop/hedef birlikte genisler.
+        sinir = await mt5_veri.sembol_sinirlari(self.sembol)
+        stop_hedef = risk.broker_sinirina_uydur(giris, ham["stop_loss"], ham["take_profit"],
+                                                 alis_mi, sinir["asgari_stop"], sinir["basamak"])
         # XAUUSD/XAGUSD'de kar para birimi zaten USD oldugu icin carpan 1.0
         # doner ve hesap degismez; yine de genel dogru olsun diye burada da
         # sorulmasi lazim (bkz. mt5_veri.kar_kuru_carpani).
         kur = await mt5_veri.kar_kuru_carpani(self.sembol)
-        lot = risk.lot_hesapla(abs(giris - stop_hedef["stop_loss"]), self.kontrat_buyuklugu,
-                                bakiye, kur_carpani=kur)
+        # Lot MUTLAKA nihai stop mesafesinden hesaplanmali - stop genisletildiyse
+        # eski mesafeyle hesaplamak riski %1'in uzerine cikarirdi.
+        lot = risk.lot_hesapla(stop_hedef["stop_mesafesi"], self.kontrat_buyuklugu,
+                                bakiye, kur_carpani=kur, fiyat=giris,
+                                azami_lot_broker=await mt5_veri.azami_lot(self.sembol))
 
         emir_fn = baglanti.create_market_buy_order if alis_mi else baglanti.create_market_sell_order
         sonuc = await emir_fn(self.sembol, lot, stop_hedef["stop_loss"], stop_hedef["take_profit"])

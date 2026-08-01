@@ -93,6 +93,47 @@ async def kar_kuru_carpani(sembol: str) -> float:
     return 1.0
 
 
+async def sembol_sinirlari(sembol: str) -> dict:
+    """Brokerin stop/hedef mesafe kisitlarini FIYAT birimine cevirerek doner.
+
+    MT5'te iki ayri kisit var ve karistirilmamalari lazim:
+
+    stopsLevel (asgari stop mesafesi): stop/hedef, guncel fiyata bundan daha
+      YAKIN OLAMAZ. Ihlal edilirse emir "Invalid stops" ile reddedilir.
+
+    freezeLevel (dondurma mesafesi): fiyat, mevcut stop veya hedefe bu kadar
+      YAKLASTIYSA emir hic degistirilemez/kapatilamaz. Yani tam kritik anda
+      basabasa cekme calismaz.
+
+    Ikisi de PUAN cinsinden gelir; puan = 10^(-basamak). Bu fonksiyon fiyat
+    farkina cevirir ki karsilastirmalar dogrudan yapilabilsin.
+
+    NOT: MetaQuotes-Demo'da ikisi de 0 - yani bu kontroller burada hicbir
+    seyi degistirmez. Gercek brokerlerde sifir olmadigi icin kod yine de
+    dogru davranmali; okunamazsa 0 varsayilir (eski davranis)."""
+    try:
+        spec = await (await baglanti_al()).get_symbol_specification(sembol)
+    except Exception as exc:  # noqa: BLE001 - sinir okunamadi diye islem durmamali
+        print(f"  (Sembol sinirlari okunamadi: {exc} - kisitsiz varsayiliyor)")
+        return {"asgari_stop": 0.0, "dondurma": 0.0, "basamak": 5}
+
+    basamak = spec.get("digits") or 5
+    puan = 10 ** (-basamak)
+    return {
+        "asgari_stop": (spec.get("stopsLevel") or 0) * puan,
+        "dondurma": (spec.get("freezeLevel") or 0) * puan,
+        "basamak": basamak,
+    }
+
+
+async def azami_lot(sembol: str) -> float | None:
+    """Brokerin bu sembol icin izin verdigi azami hacim. Okunamazsa None."""
+    try:
+        return (await (await baglanti_al()).get_symbol_specification(sembol)).get("maxVolume")
+    except Exception:  # noqa: BLE001 - sinir okunamadi diye islem durmamali
+        return None
+
+
 async def baglanti_al():
     global _baglanti
     if _baglanti is not None:

@@ -30,11 +30,26 @@ RISK_YUZDESI = 0.01  # bakiyenin %1'i
 MIN_LOT = 0.01
 LOT_ADIMI = 0.01
 
+# UST SINIR - felaket freni.
+# Lot formulunun paydasinda stop mesafesi var; stop sifira yaklasirsa lot
+# sinirsiz buyur. OLCULDU (1000 bar): normal sartlarda nominal buyukluk
+# ozsermayenin XAGUSD'de en fazla 2.71 kati, XAUUSD'de 5.05 kati, AUDNZD'de
+# ~7.0 kati oluyor. 10x tavani gercek veride HIC devreye girmiyor - sadece
+# bozuk ATR / anormal dusuk volatilite durumunda emri makul seviyede tutar.
+# Bu tavan olmadan stop %0.001'e duserse 100k hesapta 200 lot (57 milyon
+# dolar nominal) emri denenirdi.
+AZAMI_KALDIRAC = 10.0
+
 
 def lot_hesapla(stop_mesafesi_fiyat: float, kontrat_buyuklugu: float, bakiye: float,
-                 risk_yuzdesi: float = RISK_YUZDESI, kur_carpani: float = 1.0) -> float:
+                 risk_yuzdesi: float = RISK_YUZDESI, kur_carpani: float = 1.0,
+                 fiyat: float | None = None, azami_lot_broker: float | None = None) -> float:
     """kur_carpani: sembolun KAR para birimini hesap para birimine ceviren
     carpan (mt5_veri.kar_kuru_carpani'ndan gelir).
+
+    fiyat / azami_lot_broker: ust sinir kontrolleri icin. Ikisi de None ise
+    sinir uygulanmaz (eski davranis) - bu yuzden CANLI kodda ikisinin de
+    gecilmesi gerekir, backtest'te gerekmez.
 
     stop_mesafesi x kontrat_buyuklugu carpimi, sembolun kar para biriminde
     cikar - hesap para biriminde DEGIL. XAUUSD/XAGUSD'de ikisi de USD oldugu
@@ -48,8 +63,64 @@ def lot_hesapla(stop_mesafesi_fiyat: float, kontrat_buyuklugu: float, bakiye: fl
     if lot_basi_zarar <= 0:
         return MIN_LOT
     lot_ham = hedef_risk / lot_basi_zarar
+
+    # UST SINIR 1 - kaldirac tavani. Nominal buyukluk = lot x kontrat x fiyat,
+    # kur_carpani ile hesap para birimine cevrilir (AUDNZD'de nominal NZD
+    # cinsinden cikar, dolara cevrilmesi gerekir).
+    if fiyat is not None and fiyat > 0:
+        azami_nominal = bakiye * AZAMI_KALDIRAC
+        lot_tavani = azami_nominal / (kontrat_buyuklugu * fiyat * kur_carpani)
+        if lot_ham > lot_tavani:
+            print(f"  UYARI: lot {lot_ham:.2f} -> {lot_tavani:.2f} (kaldirac tavani {AZAMI_KALDIRAC:.0f}x). "
+                  f"Stop mesafesi anormal dar olabilir ({stop_mesafesi_fiyat:.5f}).")
+            lot_ham = lot_tavani
+
+    # UST SINIR 2 - brokerin kendi azami hacmi (teknik sinir).
+    if azami_lot_broker is not None and lot_ham > azami_lot_broker:
+        print(f"  UYARI: lot {lot_ham:.2f} -> {azami_lot_broker:.2f} (broker azami hacmi).")
+        lot_ham = azami_lot_broker
+
     lot = round(lot_ham / LOT_ADIMI) * LOT_ADIMI
     return max(round(lot, 2), MIN_LOT)
+
+
+def broker_sinirina_uydur(giris: float, stop: float, hedef: float, alis_mi: bool,
+                           asgari_stop: float, basamak: int = 5) -> dict:
+    """Stop/hedef, brokerin asgari mesafesinden yakinsa ikisini de genisletir.
+
+    NEDEN: MT5 brokerleri stop/hedefin guncel fiyata cok yakin olmasina izin
+    vermez (stopsLevel). Ihlal edilirse emrin TAMAMI reddedilir - yani sinyal
+    kacar. Duz reddedilmektense mesafeyi asgariye cekip islem acmak daha iyi.
+
+    RISK/ODUL ORANI KORUNUR: stop genisletilirken hedef de ayni oranda
+    genisletilir, boylece olculen 1:2 (metaller) / 1:1.5 (AUDNZD) geometrisi
+    bozulmaz.
+
+    DIKKAT: stop genisledigi icin LOT YENIDEN HESAPLANMALI - yoksa risk %1'i
+    asar. Cagiran kod donen 'stop_mesafesi' degerini kullanmali.
+
+    MetaQuotes-Demo'da asgari_stop = 0, yani bu fonksiyon hicbir sey yapmaz."""
+    stop_mesafesi = abs(giris - stop)
+    hedef_mesafesi = abs(hedef - giris)
+
+    if asgari_stop <= 0 or stop_mesafesi >= asgari_stop:
+        return {"stop_loss": round(stop, basamak), "take_profit": round(hedef, basamak),
+                "stop_mesafesi": stop_mesafesi, "genisletildi": False}
+
+    oran = hedef_mesafesi / stop_mesafesi if stop_mesafesi > 0 else RISK_ODUL_ORANI
+    yeni_stop_mesafesi = asgari_stop
+    yeni_hedef_mesafesi = oran * yeni_stop_mesafesi
+
+    if alis_mi:
+        yeni_stop, yeni_hedef = giris - yeni_stop_mesafesi, giris + yeni_hedef_mesafesi
+    else:
+        yeni_stop, yeni_hedef = giris + yeni_stop_mesafesi, giris - yeni_hedef_mesafesi
+
+    print(f"  Stop mesafesi {stop_mesafesi:.5f} -> {yeni_stop_mesafesi:.5f} "
+          f"(brokerin asgari stop mesafesi). Risk/odul 1:{oran:.1f} korundu, "
+          f"lot yeni mesafeye gore hesaplanacak.")
+    return {"stop_loss": round(yeni_stop, basamak), "take_profit": round(yeni_hedef, basamak),
+            "stop_mesafesi": yeni_stop_mesafesi, "genisletildi": True}
 
 
 def stop_ve_hedef_hesapla(df, giris_fiyati: float, alis_mi: bool, atr_carpani: float = SL_ATR_CARPANI,
