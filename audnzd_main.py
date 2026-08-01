@@ -12,6 +12,7 @@ from metaapi_cloud_sdk.clients.metaapi.trade_exception import TradeException
 
 import audnzd_emir
 import backtest
+import kapanis_bildirimi
 import mt5_veri
 
 ZAMAN_DILIMI = "1h"
@@ -19,6 +20,10 @@ ESIK = 5
 
 
 async def calistir() -> None:
+    # Broker tarafinda (stop/hedef) kapanmis pozisyonu Telegram'a bildir.
+    # SADECE OKUR VE BILDIRIR - hicbir pozisyona dokunmaz.
+    await kapanis_bildirimi.kapanislari_bildir(await mt5_veri.baglanti_al(), audnzd_emir.SEMBOL)
+
     df = await mt5_veri.mum_verisi_getir(audnzd_emir.SEMBOL, ZAMAN_DILIMI, 200)
     yon_su_an = backtest._yon_serisi_confluence(df, ESIK)[-1]
 

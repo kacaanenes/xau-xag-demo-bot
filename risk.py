@@ -32,11 +32,22 @@ LOT_ADIMI = 0.01
 
 
 def lot_hesapla(stop_mesafesi_fiyat: float, kontrat_buyuklugu: float, bakiye: float,
-                 risk_yuzdesi: float = RISK_YUZDESI) -> float:
+                 risk_yuzdesi: float = RISK_YUZDESI, kur_carpani: float = 1.0) -> float:
+    """kur_carpani: sembolun KAR para birimini hesap para birimine ceviren
+    carpan (mt5_veri.kar_kuru_carpani'ndan gelir).
+
+    stop_mesafesi x kontrat_buyuklugu carpimi, sembolun kar para biriminde
+    cikar - hesap para biriminde DEGIL. XAUUSD/XAGUSD'de ikisi de USD oldugu
+    icin carpan 1.0 ve hicbir sey degismez. AUDNZD'de carpim NZD cinsinden
+    olusur ve carpan olmadan gercek risk hedeflenenin ~%59'u kadar kalir -
+    bkz. mt5_veri.kar_kuru_carpani'ndaki olcum."""
     if stop_mesafesi_fiyat <= 0:
         return MIN_LOT
-    hedef_risk_usd = bakiye * risk_yuzdesi
-    lot_ham = hedef_risk_usd / (stop_mesafesi_fiyat * kontrat_buyuklugu)
+    hedef_risk = bakiye * risk_yuzdesi
+    lot_basi_zarar = stop_mesafesi_fiyat * kontrat_buyuklugu * kur_carpani
+    if lot_basi_zarar <= 0:
+        return MIN_LOT
+    lot_ham = hedef_risk / lot_basi_zarar
     lot = round(lot_ham / LOT_ADIMI) * LOT_ADIMI
     return max(round(lot, 2), MIN_LOT)
 

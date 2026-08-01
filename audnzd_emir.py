@@ -51,7 +51,10 @@ async def pozisyon_ac(yon: str, df) -> dict:
     stop_hedef = risk.stop_ve_hedef_hesapla(df, giris, alis_mi, atr_carpani=1.5,
                                             risk_odul_orani=1.5)
     stop_mesafesi = abs(giris - stop_hedef["stop_loss"])
-    lot = risk.lot_hesapla(stop_mesafesi, KONTRAT_BUYUKLUGU, bakiye)
+    # AUDNZD'nin kar para birimi NZD - cevrim olmadan hedeflenenin ~%59'u
+    # kadar risk alinir (bkz. mt5_veri.kar_kuru_carpani).
+    kur = await mt5_veri.kar_kuru_carpani(SEMBOL)
+    lot = risk.lot_hesapla(stop_mesafesi, KONTRAT_BUYUKLUGU, bakiye, kur_carpani=kur)
 
     if alis_mi:
         sonuc = await baglanti.create_market_buy_order(SEMBOL, lot, stop_hedef["stop_loss"], stop_hedef["take_profit"])

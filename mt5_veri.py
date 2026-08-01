@@ -36,6 +36,12 @@ async def hesap_al():
                 "server": config.MT5_SERVER,
                 "platform": "mt5",
                 "magic": 123456,
+                # BELIRTILMEZSE MetaApi varsayilan olarak "high" verir ve
+                # maliyeti ~2 katina cikarir. Demo icin yedekli baglantiya
+                # gerek yok. UYARI: bu alan sonradan DEGISTIRILEMEZ - update
+                # ucu noktasi reliability'i kabul etmiyor (HTTP 400), hesabi
+                # silip yeniden olusturmak gerekir.
+                "reliability": "regular",
             }
         )
 
@@ -45,6 +51,46 @@ async def hesap_al():
 
     _hesap = hesap
     return _hesap
+
+
+async def kar_kuru_carpani(sembol: str) -> float:
+    """Sembolun KAR para birimini hesabin para birimine ceviren carpani doner.
+
+    NEDEN GEREKLI - olculmus bir hata:
+    Lot hesabi "stop_mesafesi x kontrat_buyuklugu" carpimini dogrudan hesap
+    para birimi saniyordu. XAUUSD/XAGUSD icin bu DOGRU (kar para birimi zaten
+    USD). Ama AUDNZD gibi caprazlarda carpim NZD cinsinden cikiyor: 0.00169 x
+    100.000 = 169 NZD, 169 USD degil. 1 NZD ~ 0.589 USD oldugu icin gercek
+    risk hedeflenenin %59'u kadar oluyordu.
+
+    OLCULDU (31.07.2026 AUDNZD islemi): hedef risk 99.79 USD (%1), fiilen
+    alinan risk 58.7 USD (%0.59). Kar tarafindan da dogrulandi - hedef
+    mesafesi 151.0 NZD idi, hesaba gecen 88.92 USD, orani 0.5887 = NZDUSD.
+
+    Kur bulunamazsa 1.0 doner: yani eski (temkinli, eksik riskli) davranisa
+    duser. Islem acilmasini ENGELLEMEZ - bildirim gonderememek gibi, kur
+    okuyamamak da botu durdurmamali."""
+    baglanti = await baglanti_al()
+    spec = await baglanti.get_symbol_specification(sembol)
+    kar_para = spec.get("profitCurrency")
+    hesap_para = (await baglanti.get_account_information()).get("currency", "USD")
+
+    if not kar_para or kar_para == hesap_para:
+        return 1.0
+
+    # Once dogrudan kur (NZDUSD), yoksa tersi (USDNZD) denenir.
+    for aday, ters_mi in ((f"{kar_para}{hesap_para}", False), (f"{hesap_para}{kar_para}", True)):
+        try:
+            fiyat = await baglanti.get_symbol_price(aday)
+        except Exception:  # noqa: BLE001 - sembol yoksa digerini dene
+            continue
+        orta = (fiyat["bid"] + fiyat["ask"]) / 2
+        if orta > 0:
+            return 1 / orta if ters_mi else orta
+
+    print(f"  UYARI: {kar_para}->{hesap_para} kuru bulunamadi, lot cevrimsiz hesaplaniyor "
+          f"(hedeflenenden AZ risk alinir).")
+    return 1.0
 
 
 async def baglanti_al():

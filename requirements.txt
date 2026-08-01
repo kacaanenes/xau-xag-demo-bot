@@ -1,3 +1,4 @@
 metaapi-cloud-sdk
 python-dotenv
 pandas
+requests

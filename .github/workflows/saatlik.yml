@@ -27,6 +27,19 @@ jobs:
       - name: Bagimliliklari kur
         run: pip install -r requirements.txt
 
+      # Kapanis bildirimlerinin durum dosyasini calistirmalar arasinda tasir.
+      # Her calistirma temiz bir makinede basladigi icin bu olmadan ayni
+      # kapanis tekrar tekrar bildirilir. Cache'ler ayni anahtarla
+      # guncellenemedigi icin anahtar run_id ile donduruluyor, restore-keys
+      # ile de en son kaydedilen surum geri yukleniyor.
+      - name: Bildirim durumunu geri yukle
+        uses: actions/cache@v4
+        with:
+          path: bildirilen_kapanislar*.json
+          key: kapanis-durumu-${{ github.run_id }}
+          restore-keys: |
+            kapanis-durumu-
+
       - name: XAUUSD botunu calistir
         continue-on-error: true
         env:

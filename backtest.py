@@ -149,6 +149,9 @@ def _pozisyon_simulasyonu(df, yon_serisi, sl_atr_carpani: float, risk_odul_orani
                     "cikis_i": i,
                     "sebep": sebep,
                     "kazandi_mi": kazandi_mi,
+                    # R-katsayisi (kar/zararin baslangic riskine orani) ve
+                    # hesap dususu hesaplari icin gerekli - sadece kayit.
+                    "stop_mesafesi": pozisyon["baslangic_riski"],
                     "getiri_yuzde": (fiyat / pozisyon["giris_fiyat"] - 1) * 100 * yon_isareti,
                 })
                 pozisyon = None

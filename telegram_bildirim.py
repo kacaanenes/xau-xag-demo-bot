@@ -57,6 +57,32 @@ def pozisyon_kapandi(sembol: str, yon: str, kar_zarar: float, sebep: str) -> Non
     )
 
 
+def pozisyon_kapandi_detayli(sembol: str, yon: str, kar_zarar: float, sebep: str,
+                              cikis_fiyati=None, lot=None, kapanis_zamani=None,
+                              bakiye=None) -> None:
+    """Broker tarafinda (stop/hedef) kapanan pozisyonlar icin durum bildirimi.
+
+    pozisyon_kapandi()'dan farki: bu mesaj gecmisten geriye donuk taramayla
+    uretiliyor, bu yuzden kapanis fiyati/zamani/hacmi gibi ek bilgiler var."""
+    ok = "✅" if kar_zarar >= 0 else "❌"
+    baslik = "KÂR" if kar_zarar >= 0 else "ZARAR"
+
+    satirlar = [f"{ok} <b>{sembol} — {yon} kapandı ({baslik})</b>", ""]
+    satirlar.append(f"Sonuç: <b>{kar_zarar:+.2f} USD</b>")
+    satirlar.append(f"Sebep: {sebep}")
+    if cikis_fiyati is not None:
+        hacim = f"  ({lot} lot)" if lot is not None else ""
+        satirlar.append(f"Çıkış: {cikis_fiyati}{hacim}")
+    if kapanis_zamani is not None:
+        satirlar.append(f"Zaman: {str(kapanis_zamani)[:19]} UTC")
+    if bakiye is not None:
+        yuzde = kar_zarar / bakiye * 100 if bakiye else 0.0
+        satirlar.append("")
+        satirlar.append(f"<i>Bakiye: {bakiye:,.2f} USD  ({yuzde:+.2f}%)</i>")
+
+    _gonder("\n".join(satirlar))
+
+
 def basabasa_cekildi(sembol: str, giris: float) -> None:
     _gonder(
         f"🛡 <b>{sembol} — başabaş korumasi</b>\n\n"

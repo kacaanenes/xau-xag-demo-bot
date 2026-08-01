@@ -12,6 +12,7 @@ import datetime as dt
 
 import backtest
 import gosterim
+import kapanis_bildirimi
 import mt5_veri
 import risk
 import telegram_bildirim
@@ -152,7 +153,12 @@ class TekEnstrumanBot:
         giris = fiyat["ask"] if alis_mi else fiyat["bid"]
         stop_hedef = risk.stop_ve_hedef_hesapla(df, giris, alis_mi, atr_carpani=1.5,
                                                 risk_odul_orani=self.risk_odul_orani)
-        lot = risk.lot_hesapla(abs(giris - stop_hedef["stop_loss"]), self.kontrat_buyuklugu, bakiye)
+        # XAUUSD/XAGUSD'de kar para birimi zaten USD oldugu icin carpan 1.0
+        # doner ve hesap degismez; yine de genel dogru olsun diye burada da
+        # sorulmasi lazim (bkz. mt5_veri.kar_kuru_carpani).
+        kur = await mt5_veri.kar_kuru_carpani(self.sembol)
+        lot = risk.lot_hesapla(abs(giris - stop_hedef["stop_loss"]), self.kontrat_buyuklugu,
+                                bakiye, kur_carpani=kur)
 
         emir_fn = baglanti.create_market_buy_order if alis_mi else baglanti.create_market_sell_order
         sonuc = await emir_fn(self.sembol, lot, stop_hedef["stop_loss"], stop_hedef["take_profit"])
@@ -161,6 +167,12 @@ class TekEnstrumanBot:
         return {"durum": "islem_acildi", "yon": yon, "giris": giris, "lot": lot, **stop_hedef, "sonuc": sonuc}
 
     async def calistir(self) -> None:
+        # Once broker tarafinda kapanmis pozisyon var mi diye bak. Stop/hedef
+        # kapanislarini bot hicbir zaman canli gormuyor (15 dakikada bir
+        # calisiyor), bu yuzden gecmisten geriye donuk taraniyor.
+        # SADECE OKUR VE BILDIRIR - hicbir pozisyona dokunmaz.
+        await kapanis_bildirimi.kapanislari_bildir(await mt5_veri.baglanti_al(), self.sembol)
+
         ham = await mt5_veri.mum_verisi_getir(self.sembol, self.zaman_dilimi, 200)
         df = _tamamlanmis_barlar(ham)
         yon = self._yon_hesapla(df)
