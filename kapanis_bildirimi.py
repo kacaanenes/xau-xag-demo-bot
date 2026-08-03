@@ -28,7 +28,21 @@ import os
 import telegram_bildirim
 
 _HESAP_ETIKETI = os.getenv("HESAP_ETIKETI", "")
-_DOSYA = os.path.join(os.path.dirname(__file__), f"bildirilen_kapanislar{_HESAP_ETIKETI}.json")
+
+
+def _dosya_yolu(sembol: str) -> str:
+    """Durum dosyasi SEMBOL BASINA ayri tutulur.
+
+    NEDEN - olculdu: XAUUSD ve XAGUSD ayni hesapta, workflow'da ARDI ARDINA
+    calisiyor ve tek bir dosyayi paylasiyorlardi. Cache bos oldugunda:
+      1) xau_main calisir, dosya YOK  -> koruma aktif, sadece son 20 dk
+      2) xau_main dosyayi olusturur
+      3) xag_main calisir, dosya VAR  -> koruma DEVRE DISI kalir ve
+         XAGUSD'nin 12 saatlik penceredeki TUM kapanislari bildirilir
+    Sonuc: cache her kayboldugunda XAGUSD icin mesaj yagmuru. Ayri dosya
+    ile her sembol kendi ilk-calistirma korumasini kullanir."""
+    return os.path.join(os.path.dirname(__file__),
+                        f"bildirilen_kapanislar_{sembol}{_HESAP_ETIKETI}.json")
 
 # Geriye donuk tarama penceresi. Cron 15 dakikada bir calisiyor; pencere bundan
 # genis tutuldu ki gecikmis/atlanmis bir calistirmada kapanis kacmasin. Tekrar
@@ -57,11 +71,11 @@ _SEBEPLER = {
 }
 
 
-def _bildirilenler() -> set[str]:
-    if not os.path.exists(_DOSYA):
+def _bildirilenler(dosya: str) -> set[str]:
+    if not os.path.exists(dosya):
         return set()
     try:
-        with open(_DOSYA) as f:
+        with open(dosya) as f:
             return set(json.load(f))
     except (json.JSONDecodeError, OSError):
         # Bozuk/okunamayan durum dosyasi yuzunden bot durmamali. En kotu
@@ -69,9 +83,9 @@ def _bildirilenler() -> set[str]:
         return set()
 
 
-def _kaydet(idler: set[str]) -> None:
+def _kaydet(dosya: str, idler: set[str]) -> None:
     try:
-        with open(_DOSYA, "w") as f:
+        with open(dosya, "w") as f:
             json.dump(sorted(idler)[-_AZAMI_KAYIT:], f)
     except OSError as exc:
         print(f"  (Kapanis durumu yazilamadi: {exc})")
@@ -94,8 +108,9 @@ async def kapanislari_bildir(baglanti, sembol: str) -> int:
         print(f"  (Kapanis gecmisi okunamadi: {exc})")
         return 0
 
-    durum_var = os.path.exists(_DOSYA)
-    onceki = _bildirilenler()
+    dosya = _dosya_yolu(sembol)
+    durum_var = os.path.exists(dosya)
+    onceki = _bildirilenler(dosya)
     yeni = set()
     gonderilen = 0
     esik = simdi - dt.timedelta(minutes=_DURUMSUZ_PENCERE_DAKIKA)
@@ -135,5 +150,5 @@ async def kapanislari_bildir(baglanti, sembol: str) -> int:
 
     # Yeni kapanis olmasa bile dosyayi olustur - yoksa her calistirma
     # "durumsuz" sayilir ve yukaridaki koruma surekli devrede kalir.
-    _kaydet(onceki | yeni)
+    _kaydet(dosya, onceki | yeni)
     return gonderilen

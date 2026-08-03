@@ -11,6 +11,7 @@ from __future__ import annotations
 import datetime as dt
 
 import backtest
+import bar_kilidi
 import gosterim
 import kapanis_bildirimi
 import mt5_veri
@@ -260,6 +261,16 @@ class TekEnstrumanBot:
             if saat not in self.izinli_saatler:
                 print(f"  Sinyal var ({yon}) ama saat {saat:02d}:xx UTC islem penceresi disinda - atlaniyor.")
                 return
+
+        # BAR BASINA TEK GIRIS: backtest bir barda en fazla bir kez girer,
+        # canli bot ise 15 dakikada bir calistigi icin ayni bara 4 kez
+        # girebilir. Olculdu (AUDNZD, 2-3 Agustos): stop yedikten dakikalar
+        # sonra ayni bardan yeniden girip tekrar stop olmus. Bkz. bar_kilidi.
+        bar_bas = bar_kilidi.acik_bar_baslangici(ham)
+        if await bar_kilidi.bu_barda_giris_var_mi(await mt5_veri.baglanti_al(), self.sembol, bar_bas):
+            print(f"  Sinyal var ({yon}) ama {bar_bas.strftime('%H:%M')} barinda zaten giris "
+                  f"yapilmis - yeni bar acilana kadar tekrar girilmiyor.")
+            return
 
         await self._ac_ve_yazdir(yon, df)
 
