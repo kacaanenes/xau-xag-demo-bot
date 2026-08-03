@@ -8,3 +8,4 @@ gosterim_pozisyonlari*.json
 # Bot calisma durumu - makineye ozel, repoya girmemeli
 bildirilen_kapanislar*.json
 pozisyon_durumu*.json
+ozet_gonderildi*.json

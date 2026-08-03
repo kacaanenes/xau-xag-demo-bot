@@ -35,7 +35,9 @@ jobs:
       - name: Bildirim durumunu geri yukle
         uses: actions/cache@v4
         with:
-          path: bildirilen_kapanislar*.json
+          path: |
+            bildirilen_kapanislar*.json
+            ozet_gonderildi*.json
           key: kapanis-durumu-${{ github.run_id }}
           restore-keys: |
             kapanis-durumu-
@@ -74,7 +76,10 @@ jobs:
           HESAP_ETIKETI: "_hesap2"
         run: python audnzd_main.py
 
-      - name: Gunluk durum ozeti (sadece ozet saatinde gonderir)
+      # Ozetler gunde BIR KEZ gider - gunun ilk 12:00 UTC sonrasi
+      # calistirmasinda. Tekrari, durum dosyasi (cache ile tasinan
+      # ozet_gonderildi*.json) engelliyor.
+      - name: "[Hesap 1 - 100k] Gunluk durum ozeti"
         continue-on-error: true
         env:
           METAAPI_TOKEN: ${{ secrets.METAAPI_TOKEN }}
@@ -83,4 +88,20 @@ jobs:
           MT5_SERVER: ${{ secrets.MT5_SERVER }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          OZET_SEMBOLLER: "XAGUSD,XAUUSD"
+          OZET_BASLIK: "Gunluk durum - Metaller (100k)"
+        run: python gunluk_ozet.py
+
+      - name: "[Hesap 2 - 10k] Gunluk durum ozeti"
+        continue-on-error: true
+        env:
+          METAAPI_TOKEN: ${{ secrets.METAAPI_TOKEN }}
+          MT5_LOGIN: ${{ secrets.MT5_LOGIN_2 }}
+          MT5_PASSWORD: ${{ secrets.MT5_PASSWORD_2 }}
+          MT5_SERVER: ${{ secrets.MT5_SERVER_2 }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          HESAP_ETIKETI: "_hesap2"
+          OZET_SEMBOLLER: "AUDNZD"
+          OZET_BASLIK: "Gunluk durum - AUDNZD (10k)"
         run: python gunluk_ozet.py
