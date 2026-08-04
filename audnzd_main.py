@@ -58,9 +58,24 @@ BOT = TekEnstrumanBot(
     # AUDNZD'nin merkezi bir seansi yok; saat filtresi olculdu ve ZARAR
     # verdi (+%133.3 vs +%256.8). Metallerdeki filtre COMEX'e ozgudur.
     izinli_saatler=None,
-    # Ust zaman dilimi trend filtresi - metallerle ayni ayar.
-    ust_trend_saat=24,
-    ust_trend_ema=50,
+    # UST TREND FILTRESI YOK - denendi ve ZARAR verdi.
+    #
+    # Filtre once +%256.8 gibi cok iyi bir sonuc vermisti, ama o olcumde
+    # GELECEGE BAKIS hatasi vardi: resample("24h").last() kovanin etiketini
+    # basa, degerini sona koyar; ffill ile yayilinca sabah 00:00'daki bir
+    # islem AYNI GUNUN 23:00 kapanisini goruyordu.
+    #
+    # Hata duzeltilince (EMA sadece tamamlanmis kovalardan):
+    #   filtresiz               -%14.8   islem basi +0.002R
+    #   24s/EMA50 filtreli      -%18.9   islem basi -0.009R
+    # Filtrenin ELEDIGI grup dogru hesapla +0.001R - yani kotu degil,
+    # tuttugu gruptan IYI. Ayrim bilgi tasimiyor.
+    #
+    # Metallerde filtre hala (kucuk de olsa) katki sagliyor cunku altin ve
+    # gumus kalici trendler yapiyor. AUDNZD iki benzer ekonominin para
+    # birimi orani - dar bantta salaniyor, kalici yon yok. Varyans orani da
+    # bunu soyluyor (0.885-0.934, guclu ortalamaya donus).
+    ust_trend_saat=None,
 )
 
 

@@ -22,34 +22,46 @@ import telegram_bildirim
 def ust_trend_yukselis_mi(ham_df, saat: int = 24, ema_periyot: int = 50) -> bool | None:
     """Ust zaman diliminde trend yukselis mi? None = hesaplanamadi.
 
-    NEDEN VAR - olculdu (59.881 saatlik bar, 15.6/17.3 yil, 4.230 islem):
-      XAGUSD  filtresiz -%56.2  ->  24s/EMA50 filtreli +%262.9
-      XAUUSD  filtresiz -%32.9  ->  24s/EMA50 filtreli +%138.9
-    Filtrenin ELEDIGI islemler (ust trende ters yonde acilanlar) tek
-    baslarina -%84.8 ve -%70.7 yapiyor; islem basi beklentileri -0.133R ve
-    -0.085R. Yani sistemin zararinin buyuk kismi bu gruptan geliyordu.
+    DIKKAT - ILK OLCUM HATALIYDI (05.08.2026 duzeltmesi):
+    Ilk sonuclar +%262.9 (XAG) ve +%138.9 (XAU) idi. O hesapta GELECEGE
+    BAKIS vardi: resample("24h").last() kovanin ETIKETINI basa (00:00),
+    DEGERINI ise sona (23:00) koyar. ffill ile saatlik seriye yayilinca
+    sabah 00:00'daki bir islem AYNI GUNUN aksam kapanisini goruyordu -
+    23 saate kadar gelecege bakis. Filtre "bugun gun sonunda yukselecek
+    mi" sorusunun cevabini bilerek secim yapiyordu.
 
-    Ortalamaya donus, fiyatin bir denge etrafinda salindigini varsayar.
-    Guclu trend varsa denge yoktur - fiyat surekli yeni seviyeye tasinir ve
-    "asiri yukseldi, doner" varsayimi bozulur. 20 barlik Bollinger penceresi
-    bu buyuk resmi goremez; filtre tam bu korlugu kapatir.
+    DUZELTILMIS OLCUM (EMA sadece TAMAMLANMIS kovalardan - shift(1)):
+      XAGUSD  filtresiz -%56.2  ->  filtreli +%30.3   (dusus %72.3 -> %37.6)
+      XAUUSD  filtresiz -%32.9  ->  filtreli  -%3.5   (dusus %50.6 -> %38.2)
+      AUDNZD  filtresiz -%14.8  ->  filtreli -%18.9   <- ZARAR, o yuzden
+                                                          AUDNZD'de KAPALI
+    Elenen grubun islem basi beklentisi: XAG -0.044R, XAU -0.023R (gercek
+    ama kucuk bilgi), AUDNZD +0.001R (bilgi YOK).
 
-    DAYANIKLILIK: 18 zaman-dilimi/EMA kombinasyonunun 17'si filtresizi
-    gecti (tek tepe degil, PLATO). Ileriye yuruyen testte de 51-58 ceyrek
-    boyunca ikisinde de onde.
+    Yani filtre metallerde hala ise yariyor ama katkisi iddia ettigimin
+    onda biri kadar. Altin filtreyle bile negatif kaliyor.
 
-    NEDEN 24 SAAT VE NEDEN BROKERIN GUNLUK MUMU DEGIL: brokerin gunluk
-    verisinde 180-200 eksik gun var, EMA delikli seriden bozuk cikiyor
-    (XAUUSD'de +%8.6'ya duser). Saatlikten yeniden orneklemek gerekiyor.
+    NEDEN METALLERDE CALISIP AUDNZD'DE CALISMIYOR: altin ve gumus kalici
+    trendler yapar (merkez bankasi alimlari, dolar dongusu). AUDNZD iki
+    benzer ekonominin para birimi orani - dar bantta salinir, kalici yon
+    yoktur (varyans orani 0.885-0.934).
+
+    NEDEN BROKERIN GUNLUK MUMU DEGIL: brokerin gunluk verisinde 180-200
+    eksik gun var, EMA delikli seriden bozuk cikiyor. Saatlikten yeniden
+    orneklemek gerekiyor.
     """
     if ham_df is None or len(ham_df) < ema_periyot * saat // 2:
         return None
     try:
         ust = ham_df["close"].resample(f"{saat}h").last().dropna()
-        if len(ust) < ema_periyot:
+        if len(ust) < ema_periyot + 1:
             return None
         ema = ust.ewm(span=ema_periyot, adjust=False).mean()
-        return bool(ust.iloc[-1] > ema.iloc[-1])
+        # EMA'nin SON degeri icinde bulunulan (tamamlanmamis) kovayi da
+        # icerir; backtest ile ayni sey olsun diye bir onceki - yani son
+        # TAMAMLANMIS kovanin - EMA'si kullanilir. Karsilastirma o anki
+        # fiyatla yapilir.
+        return bool(ham_df["close"].iloc[-1] > ema.iloc[-2])
     except Exception as exc:  # noqa: BLE001 - filtre hesaplanamadi diye bot durmamali
         print(f"  (Ust trend hesaplanamadi: {exc})")
         return None
