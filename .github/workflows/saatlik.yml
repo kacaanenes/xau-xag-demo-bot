@@ -38,6 +38,7 @@ jobs:
           path: |
             bildirilen_kapanislar*.json
             ozet_gonderildi*.json
+            son_giris_bari_*.json
           key: kapanis-durumu-${{ github.run_id }}
           restore-keys: |
             kapanis-durumu-

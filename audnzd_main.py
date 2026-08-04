@@ -102,6 +102,10 @@ async def calistir() -> None:
 
     try:
         sonuc = await audnzd_emir.pozisyon_ac(yon_su_an, df)
+        if sonuc.get("durum") == "islem_acildi":
+            # Bar kilidinin yerel kaydi (bkz. bar_kilidi) - broker gecmisi
+            # okunamasa bile bir sonraki calistirma ayni bara girmesin.
+            bar_kilidi.girisi_kaydet(audnzd_emir.SEMBOL, bar_bas)
         print(f"Islem sonucu: {sonuc}")
     except TradeException as e:
         print(f"Islem acma su an basarisiz ({e}), piyasa kapali olabilir - bir sonraki calistirmada tekrar denenecek.")

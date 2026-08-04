@@ -272,11 +272,15 @@ class TekEnstrumanBot:
                   f"yapilmis - yeni bar acilana kadar tekrar girilmiyor.")
             return
 
-        await self._ac_ve_yazdir(yon, df)
+        await self._ac_ve_yazdir(yon, df, bar_bas)
 
-    async def _ac_ve_yazdir(self, yon: str, df) -> None:
+    async def _ac_ve_yazdir(self, yon: str, df, bar_bas=None) -> None:
         sonuc = await self.pozisyon_ac(yon, df)
         if sonuc["durum"] == "islem_acildi":
+            # Bar kilidinin yerel kaydi - bir sonraki calistirma bu barda
+            # tekrar girmesin (bkz. bar_kilidi).
+            if bar_bas is not None:
+                bar_kilidi.girisi_kaydet(self.sembol, bar_bas)
             print(f"  ACILDI: {yon} {sonuc['lot']} lot @ {sonuc['giris']:.5f} | "
                   f"stop {sonuc['stop_loss']:.5f} | hedef {sonuc['take_profit']:.5f}")
         else:
