@@ -50,7 +50,7 @@ class TekEnstrumanBot:
     def __init__(self, sembol: str, kontrat_buyuklugu: float, strateji: str,
                  esik: int = 5, risk_odul_orani: float = 1.5, zaman_dilimi: str = "1h",
                  basabas_r: float | None = 1.0, izinli_saatler: tuple | None = None,
-                 sinyal_tersine_cikis: bool = False):
+                 sinyal_tersine_cikis: bool = False, kapanis_bazli_atr: bool = False):
         if strateji not in ("meanrev", "trend"):
             raise ValueError(f"bilinmeyen strateji: {strateji}")
         # Sinyal ters dondugunde pozisyonu kapatmak, backtest'te AYRI bir
@@ -74,7 +74,32 @@ class TekEnstrumanBot:
         # XAGUSD'de olculdu: +%32.27 -> +%37.61 (iki yarida da pozitif).
         # Iz suren stop ayrica denendi ve DAHA KOTU cikti (+%29.69), bu
         # yuzden sadece basabas korumasi var, surekli izleyen stop yok.
+        # NOT (04.08.2026): bu olcum bar-ici stop tespiti YAPMAYAN eski
+        # motorla ve 30 islemle yapilmisti. Duzeltilmis motorla 3 yillik
+        # veride sonuc CELISKILI cikti (gumus "kapat", altin "acik kalsin"),
+        # bu yuzden degistirilmedi - bkz. kapanis_bazli_atr aciklamasi.
         self.basabas_r = basabas_r
+        # ATR YUKSEK/DUSUK BAZLI (varsayilan) mi, KAPANIS bazli mi?
+        #
+        # Kapanis bazli ATR, XAU/XAG RASYOSU icin dogru bir tercihti: orada
+        # high/low iki ayri enstrumanin teorik birlesimiydi, gercek bar-ici
+        # aralik degildi. Rasyo botu emekliye ayrilinca bu tercih tek
+        # enstruman botlarina yanlislikla miras kaldi - oysa XAGUSD ve
+        # XAUUSD'nin GERCEK yuksek/dusuk verisi var.
+        #
+        # Kapanis bazli ATR gercek dalgalanmayi olmasi gerekenin yarisi
+        # kadar olcuyor -> stoplar cok dar -> bar ici gurultu supuruyor.
+        # Canli kanit: 03.08.2026'da XAGUSD 51 SANIYEDE stop oldu; stop
+        # 0.27'ydi, o barin araligi 1.135 (stopun 4 kati).
+        #
+        # OLCULDU (11.977 bar / 3-4 yil, bar-ici stop tespitli motor,
+        # ayni barda stop+hedef ikilemi 5 dakikalik veriyle cozulmus):
+        #   XAGUSD  kapanis -%31.08  ->  yuksek/dusuk +%57.32
+        #   XAUUSD  kapanis +%36.61  ->  yuksek/dusuk +%28.94
+        # Gumus 88 puan kazaniyor, altin 7.7 puan kaybediyor. Enstruman
+        # basina ayri ayar YAPILMADI - 7.7 puan gurultu seviyesinde ve ayri
+        # ayar uydurma serbestligini ikiye katlardi.
+        self.kapanis_bazli_atr = kapanis_bazli_atr
 
     async def _basabasa_cek(self, pozisyon: dict) -> bool:
         """Kar 1R'ye ulastiysa stop'u girise ceker. Zaten girise (veya
@@ -185,7 +210,8 @@ class TekEnstrumanBot:
         alis_mi = yon == "AL"
         giris = fiyat["ask"] if alis_mi else fiyat["bid"]
         ham = risk.stop_ve_hedef_hesapla(df, giris, alis_mi, atr_carpani=1.5,
-                                          risk_odul_orani=self.risk_odul_orani)
+                                          risk_odul_orani=self.risk_odul_orani,
+                                          kapanis_bazli_atr=self.kapanis_bazli_atr)
         # Brokerin asgari stop mesafesine uydur - ihlal edilirse emrin TAMAMI
         # reddedilir, yani sinyal kacar. Gerekirse stop/hedef birlikte genisler.
         sinir = await mt5_veri.sembol_sinirlari(self.sembol)

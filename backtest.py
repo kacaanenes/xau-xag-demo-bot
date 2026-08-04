@@ -89,8 +89,39 @@ def _pozisyon_simulasyonu(df, yon_serisi, sl_atr_carpani: float, risk_odul_orani
 
     UYARI: iz suren stop sezgisel olarak "kari korur" gibi gorunse de
     kazanan islemleri erken kesip toplam getiriyi DUSUREBILIR - bu yuzden
-    varsayilan olarak KAPALI, acmadan once backtest ile karsilastirilmali."""
+    varsayilan olarak KAPALI, acmadan once backtest ile karsilastirilmali.
+
+    ------------------------------------------------------------------
+    BAR ICI (INTRABAR) STOP/HEDEF TESPITI - 04.08.2026 duzeltmesi
+    ------------------------------------------------------------------
+    ONCEKI HATA: stop ve hedef kontrolu SADECE bar KAPANISIYLA yapiliyordu.
+    Bir bar stopun altina inip kapanista geri cikarsa simulasyon pozisyonu
+    acik tutuyordu - oysa gercekte stop emri brokerde duruyor ve bar ICINDE
+    tetikleniyor. Yani simulasyon bircok stop-out'u hic gormuyordu ve
+    sistemi oldugundan IYI gosteriyordu.
+
+    OLCULDU (11.977 barlik derin veri, 3-4 yil):
+      XAGUSD  kapanis bazli +%68.71  ->  bar ici  -%3.70
+      XAUUSD  kapanis bazli +%27.09  ->  bar ici +%24.46
+    Gumusteki fark 72 puan; yani eski motorun urettigi her gumus sonucu
+    ciddi sekilde fazla iyimserdi.
+
+    SIMDI: stop/hedef bar ICI yuksek-dusuk ile tespit edilir ve cikis
+    KAPANIS degil STOP/HEDEF FIYATINDAN kaydedilir (gercek emir davranisi).
+
+    AYNI BARDA IKISI DE GORULURSE hangisinin once oldugu saatlik veriden
+    bilinemez - TEMKINLI davranilip STOP kabul edilir. Bu, sonuclari bir
+    miktar kotumser yapar; tersi (hedef kabul etmek) sistemi olmadigi kadar
+    iyi gosterirdi.
+
+    BASABAS/IZ SUREN stop ise bar KAPANISI ile guncellenir. Bunun sebebi
+    ayni sira belirsizligi: bar ici "once 1R'ye degdi mi yoksa once girise
+    mi dondu" bilinemez. Kapanisi kullanmak bu belirsizligi ortadan
+    kaldirir ve botun 15 dakikada bir bakma davranisina da yakindir.
+    """
     kapanis = df["close"]
+    yuksek = df["high"] if "high" in df else kapanis
+    dusuk = df["low"] if "low" in df else kapanis
     atr = teknik.atr_kapanis_bazli(kapanis, 14) if kapanis_bazli_atr else teknik.atr_serisi(df, 14)
 
     islemler = []
@@ -100,31 +131,24 @@ def _pozisyon_simulasyonu(df, yon_serisi, sl_atr_carpani: float, risk_odul_orani
         fiyat = kapanis.iloc[i]
 
         if pozisyon is not None:
-            # Stop'u yukari/asagi cek (asla ters yone gevsetme)
-            if basabas_r is not None or iz_atr_carpani is not None:
-                r = pozisyon["baslangic_riski"]
-                if pozisyon["yon"] == "AL":
-                    if basabas_r is not None and fiyat >= pozisyon["giris_fiyat"] + basabas_r * r:
-                        pozisyon["stop"] = max(pozisyon["stop"], pozisyon["giris_fiyat"])
-                    if iz_atr_carpani is not None:
-                        pozisyon["stop"] = max(pozisyon["stop"], fiyat - iz_atr_carpani * atr.iloc[i])
-                else:
-                    if basabas_r is not None and fiyat <= pozisyon["giris_fiyat"] - basabas_r * r:
-                        pozisyon["stop"] = min(pozisyon["stop"], pozisyon["giris_fiyat"])
-                    if iz_atr_carpani is not None:
-                        pozisyon["stop"] = min(pozisyon["stop"], fiyat + iz_atr_carpani * atr.iloc[i])
+            alis_mi = pozisyon["yon"] == "AL"
 
-            tetiklendi, sebep = False, None
-            if pozisyon["yon"] == "AL":
-                if fiyat <= pozisyon["stop"]:
-                    tetiklendi, sebep = True, "stop"
-                elif fiyat >= pozisyon["hedef"]:
-                    tetiklendi, sebep = True, "hedef"
+            # --- BAR ICI stop/hedef tespiti (cikis stop/hedef fiyatindan) ---
+            if alis_mi:
+                stop_vuruldu = dusuk.iloc[i] <= pozisyon["stop"]
+                hedef_vuruldu = yuksek.iloc[i] >= pozisyon["hedef"]
             else:
-                if fiyat >= pozisyon["stop"]:
-                    tetiklendi, sebep = True, "stop"
-                elif fiyat <= pozisyon["hedef"]:
-                    tetiklendi, sebep = True, "hedef"
+                stop_vuruldu = yuksek.iloc[i] >= pozisyon["stop"]
+                hedef_vuruldu = dusuk.iloc[i] <= pozisyon["hedef"]
+
+            tetiklendi, sebep, cikis_fiyati = False, None, fiyat
+            if stop_vuruldu:
+                # Ikisi de ayni barda ise temkinli olarak STOP kabul edilir.
+                tetiklendi = True
+                cikis_fiyati = pozisyon["stop"]
+                sebep = "basabas" if pozisyon.get("basabas_aktif") else "stop"
+            elif hedef_vuruldu:
+                tetiklendi, sebep, cikis_fiyati = True, "hedef", pozisyon["hedef"]
 
             if not tetiklendi and sinyal_tersine_cikis and yon_serisi[i] is not None and yon_serisi[i] != pozisyon["yon"]:
                 tetiklendi, sebep = True, "sinyal_tersine_dondu"
@@ -134,17 +158,17 @@ def _pozisyon_simulasyonu(df, yon_serisi, sl_atr_carpani: float, risk_odul_orani
             # gerceklestirmek yerine stop/hedefe sansi kalsin.
             if not tetiklendi and kotu_saatte_kari_al and izinli_saatler is not None \
                     and df.index[i].hour not in izinli_saatler:
-                kardaysa = (fiyat > pozisyon["giris_fiyat"]) if pozisyon["yon"] == "AL" else (fiyat < pozisyon["giris_fiyat"])
+                kardaysa = (fiyat > pozisyon["giris_fiyat"]) if alis_mi else (fiyat < pozisyon["giris_fiyat"])
                 if kardaysa:
                     tetiklendi, sebep = True, "kotu_saatte_kar_alindi"
 
             if tetiklendi:
-                kazandi_mi = (fiyat > pozisyon["giris_fiyat"]) if pozisyon["yon"] == "AL" else (fiyat < pozisyon["giris_fiyat"])
-                yon_isareti = 1 if pozisyon["yon"] == "AL" else -1
+                yon_isareti = 1 if alis_mi else -1
+                kazandi_mi = (cikis_fiyati - pozisyon["giris_fiyat"]) * yon_isareti > 0
                 islemler.append({
                     "yon": pozisyon["yon"],
                     "giris": pozisyon["giris_fiyat"],
-                    "cikis": fiyat,
+                    "cikis": cikis_fiyati,
                     "giris_i": pozisyon["giris_i"],
                     "cikis_i": i,
                     "sebep": sebep,
@@ -152,9 +176,29 @@ def _pozisyon_simulasyonu(df, yon_serisi, sl_atr_carpani: float, risk_odul_orani
                     # R-katsayisi (kar/zararin baslangic riskine orani) ve
                     # hesap dususu hesaplari icin gerekli - sadece kayit.
                     "stop_mesafesi": pozisyon["baslangic_riski"],
-                    "getiri_yuzde": (fiyat / pozisyon["giris_fiyat"] - 1) * 100 * yon_isareti,
+                    "getiri_yuzde": (cikis_fiyati / pozisyon["giris_fiyat"] - 1) * 100 * yon_isareti,
                 })
                 pozisyon = None
+            else:
+                # --- Stop'u yukari/asagi cek: BAR KAPANISIYLA (sira belirsizligi
+                # olmasin diye - bkz. fonksiyon aciklamasi). Asla ters yone
+                # gevsetilmez.
+                if basabas_r is not None or iz_atr_carpani is not None:
+                    r = pozisyon["baslangic_riski"]
+                    if alis_mi:
+                        if basabas_r is not None and fiyat >= pozisyon["giris_fiyat"] + basabas_r * r:
+                            if pozisyon["stop"] < pozisyon["giris_fiyat"]:
+                                pozisyon["stop"] = pozisyon["giris_fiyat"]
+                                pozisyon["basabas_aktif"] = True
+                        if iz_atr_carpani is not None:
+                            pozisyon["stop"] = max(pozisyon["stop"], fiyat - iz_atr_carpani * atr.iloc[i])
+                    else:
+                        if basabas_r is not None and fiyat <= pozisyon["giris_fiyat"] - basabas_r * r:
+                            if pozisyon["stop"] > pozisyon["giris_fiyat"]:
+                                pozisyon["stop"] = pozisyon["giris_fiyat"]
+                                pozisyon["basabas_aktif"] = True
+                        if iz_atr_carpani is not None:
+                            pozisyon["stop"] = min(pozisyon["stop"], fiyat + iz_atr_carpani * atr.iloc[i])
 
         # Saat filtresi SADECE yeni giriste uygulanir - acik pozisyon,
         # izinli saat disina cikilsa bile kendi stop/hedefine kadar yonetilir.
@@ -172,7 +216,7 @@ def _pozisyon_simulasyonu(df, yon_serisi, sl_atr_carpani: float, risk_odul_orani
                 stop = fiyat + stop_mesafesi
                 hedef = fiyat - hedef_mesafesi
             pozisyon = {"yon": yon_serisi[i], "giris_fiyat": fiyat, "stop": stop, "hedef": hedef,
-                        "giris_i": i, "baslangic_riski": stop_mesafesi}
+                        "giris_i": i, "baslangic_riski": stop_mesafesi, "basabas_aktif": False}
 
     return islemler
 
