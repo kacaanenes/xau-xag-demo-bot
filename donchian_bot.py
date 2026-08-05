@@ -10,7 +10,7 @@ KURAL
   - kapanis, onceki 20 barin EN YUKSEGINI asarsa  -> AL
   - kapanis, onceki 20 barin EN DUSUGUNUN altina inerse -> SAT
   - stop: giristen 1.5 x ATR(14) uzakta
-  - HEDEF YOK - stop, her 4 saatlik bar kapanisinda fiyatin 3 x ATR
+  - HEDEF YOK - stop, her 4 saatlik bar kapanisinda fiyatin 1.5 x ATR
     gerisine cekilir (sadece lehte yonde, asla geri gitmez)
   - pozisyon acikken yeni sinyal DIKKATE ALINMAZ (backtest de boyle olculdu)
 
@@ -31,46 +31,61 @@ maliyet oduyordu. Sistemin 15 yillik veride kaybetmesinin tek basina
 yeterli sebebi buydu.
 
 --------------------------------------------------------------------------
-OLCUM (17.3 / 15.6 yil, spread dahil, BOSLUK DOLUMU GERCEKCI)
+OLCUM (17.3 / 15.6 yil, spread dahil, BOSLUK DOLUMU GERCEKCI,
+       AYNI BARDA YENIDEN GIRIS YOK)
 --------------------------------------------------------------------------
                 islem  isabet   net R   hesap%  dusus%  1.yari  2.yari  son3y
-  XAUUSD          510    %32   +0.1938  +126.1    32.8  +117.5    +3.9  +26.3
-  XAGUSD          483    %30   +0.2150  +135.0    40.5   +44.0   +63.2  +16.9
-  ikisi birlikte  993                   +151.5    26.4   (islem basi %0.5 risk)
+  XAUUSD          658    %40   +0.1941  +217.1    26.8  +120.2   +44.0  +52.2
+  XAGUSD          634    %36   +0.1641  +147.8    31.2  +120.4   +12.4   -6.1
+  ikisi birlikte 1292                   +198.6    20.8   (islem basi %0.5 risk)
 
-Kazanc profili: isabet %30 - ISLEMLERIN COGU ZARAR EDER. Ortalama kazanc
-+2.92R / +3.31R, ortalama kayip -1.07R / -1.10R. En buyuk tek kazanc
-+20.7R ve +23.9R. Para birkac buyuk hareketten gelir; ust uste 5-6 zarar
-NORMALDIR ve sistemin bozuldugu anlamina gelmez.
+Isabet %36-40 - islemlerin cogu yine de zarar eder, para birkac buyuk
+hareketten gelir. Ust uste 4-5 zarar NORMALDIR ve sistemin bozuldugu
+anlamina gelmez.
 
-BOSLUK DOLUMU: ilk olcum +430% / +400% demisti. Hafta sonu ve haber
-bosluklarinda emir stop fiyatindan DEGIL acilis fiyatindan dolar; 510
-islemin 35'i boylece doldu ve sonuc +126%'ya indi. Yukaridaki rakamlar
-duzeltilmis olanlardir.
+IKI OLCUM DUZELTMESI - onceki rakamlar (+126.1% / +135.0%) YANLISTI:
+
+1) BOSLUK DOLUMU: ilk olcum +430% / +400% demisti. Hafta sonu ve haber
+   bosluklarinda emir stop fiyatindan DEGIL acilis fiyatindan dolar.
+2) AYNI BARDA YENIDEN GIRIS: motor, stop yedikten sonra ayni barda tekrar
+   girebiliyordu. Canli bot bunu YAPAMAZ - bar_kilidi engelliyor. Motor
+   canli davranisa hizalandi.
 
 --------------------------------------------------------------------------
 DAYANIKLILIK TESTLERI
 --------------------------------------------------------------------------
-PARAMETRE PLATOSU: 6 Donchian periyodu (10-55) x 5 iz suren carpani
-(2.0-5.0) = 60 hucrenin 60'i da pozitif (altin +22%...+422%, gumus
-+7%...+148%). Tek tepe degil genis plato - bu proje boyunca test edilen
-hicbir sistemde bu olmadi.
+PARAMETRE PLATOSU: 5 Donchian periyodu (10-55) x 7 iz suren carpani
+(1.0-5.0) = 35 hucrenin hepsi pozitif. Tek tepe degil genis plato - bu
+proje boyunca test edilen hicbir sistemde bu olmadi.
 
-MALIYET DUYARLILIGI: altin spread'in 5 katinda bile pozitif (+42%). Gumus
-3 katinda pozitif (+24%), 5 katinda kiriliyor (-35%).
+MALIYET DUYARLILIGI (Donchian20, iz 1.5): altin spread x3'te +135%,
+x5'te +75%. Gumus x3'te +9%, x5'te -52%. Siki iz suren stop daha cok
+islem = daha cok spread demek; gumusun payi bu yuzden dar.
 
-ILERIYE YURUYEN (12 ceyrek isinma): altin sabit Donchian20 ile +77.8%,
-gumus +22.3%. ONEMLI: "her ceyrek gecmisin en iyi periyodunu sec"
-yaklasimi gumuste ZARAR ettiriyor (-23.9%) - parametre SABIT kalmali,
-uyarlanmamali. O yuzden periyot ve carpan burada sabittir.
+ILERIYE YURUYEN (12 ceyrek isinma, SABIT parametre): altin +144.7%,
+gumus +12.8%.
+ONEMLI: "her ceyrek gecmisin en iyisini sec" yaklasimi gumuste ZARAR
+ettiriyor (-23.9%) - parametre SABIT kalmali, uyarlanmamali.
+
+CANLI KOD == OLCUM MOTORU: dort_saatlik(), yon_serisi_donchian() ve iz
+suren formulu, olcumde kullanilan bagimsiz kodla 16.360 barda bire bir
+ayni sonucu veriyor (0 fark). Bu dosyadaki parametreler degistirilirse
+olcum de gecersiz olur.
 
 --------------------------------------------------------------------------
 BILINEN ZAYIFLIKLAR - degistirmeden once bunlari hatirla
 --------------------------------------------------------------------------
-1. Altinin 2. yarisi sadece +3.9%. Kazancin cogu 2009-2017'den geliyor.
-   Gumus dengeli (+44 / +63), altin degil.
-2. Tekil enstruman dususu %32.8 ve %40.5. Iki metal birlikte %0.5 riskle
-   %26.4'e iniyor - o yuzden risk yuzdesi burada 0.005.
+1. GUMUSUN SON 3 YILI NEGATIF (-6.1%). Iz suren stop 3.0xATR olsaydi
+   +19.6% olurdu - yani gumus son rejimde GEVSEK stop seviyor, altin ise
+   SIKI (1.5'te +52.2%, 3.0'da +28.7%). Iki metal zit sey istiyor.
+   1.5 secildi cunku birlesik sonuc her olcude daha iyi: getiri +142.5%
+   -> +198.6%, dusus %28.0 -> %20.8, isabet %30 -> %38, ve +1R kari
+   gorup geri veren islem orani %42 -> %17.
+   ENSTRUMAN BASINA AYRI AYAR YAPILMADI - platonun anlamini yok eder ve
+   uydurma serbestligini ikiye katlar (ayni karar ATR seciminde de
+   verilmisti).
+2. Tekil enstruman dususu %26.8 ve %31.2. Iki metal birlikte %0.5 riskle
+   %20.8'e iniyor - o yuzden risk yuzdesi burada 0.005.
 3. Iz suren stop cikislarinda KAYMA olculmedi. Demo sifir kayma veriyor;
    kayma_kaydi.py bunu biriktiriyor.
 4. Donchian20/4h butun veriye bakilarak secildi. Plato bunu buyuk olcude
@@ -141,16 +156,25 @@ def yon_serisi_donchian(df: pd.DataFrame, periyot: int = 20) -> list:
 
 class DonchianBot:
     def __init__(self, sembol: str, kontrat_buyuklugu: float, periyot: int = 20,
-                 stop_atr_carpani: float = 1.5, iz_atr_carpani: float = 3.0,
+                 stop_atr_carpani: float = 1.5, iz_atr_carpani: float = 1.5,
                  risk_yuzdesi: float = 0.005, bar_saati: int = 4,
                  azami_bayatlik_r: float = 0.5):
         self.sembol = sembol
         self.kontrat_buyuklugu = kontrat_buyuklugu
         self.periyot = periyot
         self.stop_atr_carpani = stop_atr_carpani
-        # Iz suren stopun fiyati kac ATR geriden takip ettigi. 3.0 disindaki
-        # butun degerler de pozitif (bkz. plato tablosu) - degistirmeden once
-        # tek tepe avina cikmadigimizdan emin ol.
+        # Iz suren stopun fiyati kac ATR geriden takip ettigi.
+        #
+        # 1.5 SECILDI (3.0 degil): 3.0'da pozisyon tepesinden 2R geri
+        # vermeden kapanmiyordu ve +1R kara ulasmis islemlerin %42'si
+        # basabas ya da zararla bitiyordu. 1.5'te bu oran %17'ye iniyor,
+        # isabet %30'dan %38'e cikiyor, birlesik dusus %28.0'dan %20.8'e
+        # ve getiri +142.5%'ten +198.6%'ya.
+        #
+        # UYARI - 5.0'DAKI +224.9%'A ALDANMA: altin 4.0'da +73.7 iken
+        # 5.0'da +272.1'e siciriyor. Bu plato degil TEPE; bu projede tam
+        # bu yuzden bircok kurulum elendi. En yuksek rakam en iyi secim
+        # degildir.
         self.iz_atr_carpani = iz_atr_carpani
         # Iki enstruman ayni hesapta calistigi icin islem basi %0.5. Tekil
         # %1 ile birlesik dusus %46.6'ya cikiyordu, %0.5 ile %26.4.
