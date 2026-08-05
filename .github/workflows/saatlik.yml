@@ -66,7 +66,12 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python xag_main.py
 
-      - name: "[Hesap 2 - 10000 USD] AUDNZD botunu calistir"
+      # 05.08.2026: AUDNZD KALDIRILDI, yerine Donchian kirilim botu geldi.
+      # AUDNZD 15.2 yillik veride maliyetler dahil -%51 yapiyordu ve hicbir
+      # varyanti ileriye yuruyen testten gecmedi. Donchian, bu projede
+      # butun dayaniklilik testlerinden gecen ilk kurulum - bkz.
+      # donchian_bot.py docstring'i.
+      - name: "[Hesap 2 - 10000 USD] Donchian kirilim botu (XAU+XAG, 4h)"
         continue-on-error: true
         env:
           METAAPI_TOKEN: ${{ secrets.METAAPI_TOKEN }}
@@ -76,7 +81,7 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           HESAP_ETIKETI: "_hesap2"
-        run: python audnzd_main.py
+        run: python donchian_main.py
 
       # Ozetler gunde BIR KEZ gider - gunun ilk 12:00 UTC sonrasi
       # calistirmasinda. Tekrari, durum dosyasi (cache ile tasinan
@@ -94,7 +99,7 @@ jobs:
           OZET_BASLIK: "Gunluk durum - Metaller (100k)"
         run: python gunluk_ozet.py
 
-      - name: "[Hesap 2 - 10k] Gunluk durum ozeti"
+      - name: "[Hesap 2 - 10k] Gunluk durum ozeti (Donchian)"
         continue-on-error: true
         env:
           METAAPI_TOKEN: ${{ secrets.METAAPI_TOKEN }}
@@ -104,6 +109,8 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           HESAP_ETIKETI: "_hesap2"
-          OZET_SEMBOLLER: "AUDNZD"
-          OZET_BASLIK: "Gunluk durum - AUDNZD (10k)"
+          # AUDNZD hala listede: bot kaldirildi ama acik pozisyonu brokerde
+          # kendi stop/hedefiyle duruyor - kapanana kadar ozette gorunsun.
+          OZET_SEMBOLLER: "XAUUSD,XAGUSD,AUDNZD"
+          OZET_BASLIK: "Gunluk durum - Donchian kirilim (10k)"
         run: python gunluk_ozet.py
