@@ -34,18 +34,25 @@ def _gonder(metin: str) -> None:
 
 
 def pozisyon_acildi(sembol: str, yon: str, lot: float, giris: float,
-                    stop: float, hedef: float, bakiye: float) -> None:
+                    stop: float, hedef: float | None, bakiye: float) -> None:
+    """hedef=None: hedefsiz (iz suren stopla yonetilen) pozisyon.
+
+    Donchian botu hedef koymaz. Onceden buraya 0.0 geciliyordu ve mesaj
+    "Hedef: 0.00000 (4128.24000 uzakta) / Risk/Odul: 1:80.1" gibi tamamen
+    yaniltici cikiyordu."""
     risk = abs(giris - stop)
-    odul = abs(hedef - giris)
     ok = "🟢" if yon == "AL" else "🔴"
-    _gonder(
-        f"{ok} <b>{sembol} — {yon}</b>\n\n"
-        f"Giriş: <b>{giris:.5f}</b>  ({lot} lot)\n"
-        f"Stop: {stop:.5f}  ({risk:.5f} uzakta)\n"
-        f"Hedef: {hedef:.5f}  ({odul:.5f} uzakta)\n"
-        f"Risk/Ödül: 1:{odul/risk:.1f}\n\n"
-        f"<i>Bakiye: {bakiye:,.2f} USD</i>"
-    )
+    satirlar = [f"{ok} <b>{sembol} — {yon}</b>", "",
+                f"Giriş: <b>{giris:.5f}</b>  ({lot} lot)",
+                f"Stop: {stop:.5f}  ({risk:.5f} uzakta)"]
+    if hedef:
+        odul = abs(hedef - giris)
+        satirlar.append(f"Hedef: {hedef:.5f}  ({odul:.5f} uzakta)")
+        satirlar.append(f"Risk/Ödül: 1:{odul/risk:.1f}")
+    else:
+        satirlar.append("Hedef: <b>yok</b> — iz süren stopla yönetilir")
+    satirlar += ["", f"<i>Bakiye: {bakiye:,.2f} USD</i>"]
+    _gonder("\n".join(satirlar))
 
 
 def pozisyon_kapandi(sembol: str, yon: str, kar_zarar: float, sebep: str) -> None:
@@ -81,6 +88,23 @@ def pozisyon_kapandi_detayli(sembol: str, yon: str, kar_zarar: float, sebep: str
         satirlar.append(f"<i>Bakiye: {bakiye:,.2f} USD  ({yuzde:+.2f}%)</i>")
 
     _gonder("\n".join(satirlar))
+
+
+def stop_kara_gecti(sembol: str, yon: str, giris: float, yeni_stop: float,
+                    kilitlenen: float) -> None:
+    """Iz suren stop ILK KEZ giris fiyatinin karli tarafina gecti.
+
+    NEDEN SADECE BIR KEZ: iz suren stop her 4 saatlik barda guncelleniyor,
+    yani ortalama 41 saatlik bir pozisyonda ~10 kez. Her guncellemeyi
+    bildirmek Telegram'i doldururdu. Anlamli an, stopun zarar tarafindan
+    kar tarafina GECTIGI andir - o andan sonra islem artik zarar edemez."""
+    _gonder(
+        f"🛡 <b>{sembol} — {yon} artık zarar edemez</b>\n\n"
+        f"İz süren stop girişin üstüne geçti.\n"
+        f"Giriş: {giris:.5f}  →  Stop: <b>{yeni_stop:.5f}</b>\n"
+        f"Kilitlenen: <b>{kilitlenen:+.5f}</b> puan\n\n"
+        f"<i>Stop bundan sonra sadece lehe hareket eder, geri gitmez.</i>"
+    )
 
 
 def basabasa_cekildi(sembol: str, giris: float) -> None:

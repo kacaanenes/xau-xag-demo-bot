@@ -251,7 +251,16 @@ class DonchianBot:
         print(f"  IZ SUREN STOP: {mevcut:.5f} -> {yeni_stop:.5f} "
               f"({'kar kilitlendi' if korunan > 0 else 'zarar daraltildi'}: "
               f"{korunan:+.5f} puan)")
-        telegram_bildirim.basabasa_cekildi(self.sembol, yeni_stop)
+
+        # TELEGRAM SADECE ESIK GECISINDE: stop her 4 saatlik barda
+        # guncelleniyor (41 saatlik ortalama pozisyonda ~10 kez). Anlamli
+        # an, stopun zarar tarafindan KAR tarafina gectigi tek andir.
+        # Durum dosyasi gerekmiyor - eski ve yeni stopun girise gore
+        # tarafina bakmak yeterli.
+        onceki_korunan = (mevcut - giris) * isaret
+        if onceki_korunan <= 0 < korunan:
+            telegram_bildirim.stop_kara_gecti(
+                self.sembol, "AL" if alis_mi else "SAT", giris, yeni_stop, korunan)
         return True
 
     # ------------------------------------------------------------- giris
@@ -309,7 +318,8 @@ class DonchianBot:
 
         if bar_bas is not None:
             bar_kilidi.girisi_kaydet(self.sembol, bar_bas)
-        telegram_bildirim.pozisyon_acildi(self.sembol, yon, lot, giris, stop, 0.0, bakiye)
+        # hedef=None -> mesajda "Hedef: yok, iz suren stopla yonetilir" yazar.
+        telegram_bildirim.pozisyon_acildi(self.sembol, yon, lot, giris, stop, None, bakiye)
         return {"durum": "islem_acildi", "yon": yon, "giris": giris, "lot": lot,
                 "stop_loss": stop, "stop_mesafesi": stop_mesafesi, "sonuc": sonuc}
 
