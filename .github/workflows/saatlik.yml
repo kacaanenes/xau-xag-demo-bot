@@ -109,8 +109,6 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           HESAP_ETIKETI: "_hesap2"
-          # AUDNZD hala listede: bot kaldirildi ama acik pozisyonu brokerde
-          # kendi stop/hedefiyle duruyor - kapanana kadar ozette gorunsun.
-          OZET_SEMBOLLER: "XAUUSD,XAGUSD,AUDNZD"
+          OZET_SEMBOLLER: "XAUUSD,XAGUSD"
           OZET_BASLIK: "Gunluk durum - Donchian kirilim (10k)"
         run: python gunluk_ozet.py

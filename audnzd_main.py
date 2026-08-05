@@ -1,4 +1,13 @@
-"""AUDNZD demo botu.
+"""AUDNZD demo botu - EMEKLIYE AYRILDI (05.08.2026).
+
+Bu dosya artik CALISTIRILMIYOR; workflow'daki yerini donchian_main.py aldi.
+Silinmedi cunku asagidaki olcum kaydi (varyans orani ile strateji ailesi
+secmenin nasil yapildigi ve ilk secimin neden yanlis oldugu) hala ogretici.
+
+KALDIRMA GEREKCESI: asagidaki +%256.8'lik sonuc GELECEGE BAKIS iceriyordu.
+Hata duzeltilip spread eklendiginde 15.2 yillik sonuc -%51 cikti ve hicbir
+varyanti ileriye yuruyen testten gecemedi. Son acik pozisyon 05.08.2026'da
+-62.08 USD ile kapatildi.
 
 05.08.2026 - STRATEJI AILESI DEGISTI. Onceki hali confluence (trend takip)
 kullaniyordu; 15.2 yillik veride bunun bastan yanlis secim oldugu ortaya
