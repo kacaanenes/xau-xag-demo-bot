@@ -8,12 +8,14 @@ Strateji tipi enstrumanin OLCULEN karakterine gore secilir (varyans orani
 SADECE demo hesap icindir."""
 from __future__ import annotations
 
+import asyncio
 import datetime as dt
 
 import backtest
 import bar_kilidi
 import gosterim
 import kapanis_bildirimi
+import kayma_kaydi
 import mt5_veri
 import risk
 import telegram_bildirim
@@ -282,6 +284,29 @@ class TekEnstrumanBot:
 
         emir_fn = baglanti.create_market_buy_order if alis_mi else baglanti.create_market_sell_order
         sonuc = await emir_fn(self.sembol, lot, stop_hedef["stop_loss"], stop_hedef["take_profit"])
+
+        # GIRIS KAYMASI OLCUMU: lot ve stop hesabinin dayandigi fiyat (giris)
+        # ile emrin FIILEN doldugu fiyati karsilastir. Demo idealize doldurur
+        # (olculdu: 24 cikisin 24'unde kayma sifir), gercek broker doldurmaz.
+        # Birikince maliyet modeline varsayim degil OLCUM koyabiliriz.
+        try:
+            # Terminal durumu emirden hemen sonra guncellenmemis olabilir;
+            # birkac kez kisa araliklarla bakilir. Bulunamazsa sadece bu
+            # olcum atlanir, islem etkilenmez.
+            acilan = None
+            for _ in range(3):
+                acilan = await self._pozisyon_getir()
+                if acilan is not None:
+                    break
+                await asyncio.sleep(1)
+            if acilan is not None:
+                kayma_kaydi.kaydet(self.sembol, yon, giris, acilan["openPrice"], lot,
+                                   stop_hedef["stop_mesafesi"])
+            else:
+                print("  (Kayma olculemedi: pozisyon terminal durumunda gorunmedi)")
+        except Exception as exc:  # noqa: BLE001 - olcum hatasi islemi bozmamali
+            print(f"  (Kayma olculemedi: {exc})")
+
         telegram_bildirim.pozisyon_acildi(self.sembol, yon, lot, giris,
                                            stop_hedef["stop_loss"], stop_hedef["take_profit"], bakiye)
         return {"durum": "islem_acildi", "yon": yon, "giris": giris, "lot": lot, **stop_hedef, "sonuc": sonuc}

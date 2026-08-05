@@ -39,6 +39,7 @@ jobs:
             bildirilen_kapanislar*.json
             ozet_gonderildi*.json
             son_giris_bari_*.json
+            kayma_kaydi*.jsonl
           key: kapanis-durumu-${{ github.run_id }}
           restore-keys: |
             kapanis-durumu-
