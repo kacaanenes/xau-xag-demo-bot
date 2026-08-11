@@ -26,7 +26,38 @@ async def hesap_al():
     hesaplar = await _api.metatrader_account_api.get_accounts_with_infinite_scroll_pagination()
     hesap = next((h for h in hesaplar if h.login == config.MT5_LOGIN), None)
 
+    if hesap is None and not config.HESAP_OLUSTURMAYA_IZIN_VER:
+        # KAZA KORUMASI (11.08.2026'da yasanan olay).
+        #
+        # OLAN: .env'deki MT5_LOGIN_3 yanlis bir numara iceriyordu
+        # (5053777536, dogrusu 5054277839). O numara MetaApi'de kayitli
+        # olmadigi icin kod "demek kayitli degil, kaydedeyim" deyip YENI
+        # BIR HESAP OLUSTURMAYA kalkti. Kota dolu oldugu icin
+        # ValidationException ile durdu - ama kota dolu OLMASAYDI sessizce
+        # dorduncu bir hesap acilacakti.
+        #
+        # NEDEN CIDDI: MetaApi hesap basina ucret aliyor ve bu hatanin
+        # TEKRARI icin ayrica ucret uygulama hakkini sakli tutuyor
+        # (bkz. metaapi.cloud/docs/provisioning/excessiveErrors). Yani tek
+        # harflik bir secret hatasi, her 15 dakikada bir para harcayan
+        # sessiz bir donguye donusebilir.
+        #
+        # ARTIK: hesap bulunamazsa kod DURUR ve ne yapilmasi gerektigini
+        # soyler. Gercekten yeni hesap kaydi gerekiyorsa acikca
+        # HESAP_OLUSTURMAYA_IZIN_VER=1 ile calistirilir.
+        kayitli = ", ".join(sorted(str(h.login) for h in hesaplar)) or "(hic yok)"
+        raise RuntimeError(
+            f"MetaApi'de {config.MT5_LOGIN!r} loginli hesap YOK - yeni hesap "
+            f"OLUSTURULMADI (kaza korumasi).\n"
+            f"  MetaApi'de kayitli olanlar: {kayitli}\n"
+            f"  Muhtemel sebep: MT5_LOGIN degeri yanlis (secret/.env yazim hatasi).\n"
+            f"  Gercekten yeni hesap kaydedilecekse HESAP_OLUSTURMAYA_IZIN_VER=1 "
+            f"ile calistir."
+        )
+
     if hesap is None:
+        print(f"  HESAP_OLUSTURMAYA_IZIN_VER=1 - MetaApi'ye YENI hesap kaydediliyor: "
+              f"{config.MT5_LOGIN} @ {config.MT5_SERVER}")
         hesap = await _api.metatrader_account_api.create_account(
             account={
                 "name": f"Demo {config.MT5_LOGIN}",
