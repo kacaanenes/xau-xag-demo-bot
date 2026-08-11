@@ -83,6 +83,24 @@ jobs:
           HESAP_ETIKETI: "_hesap2"
         run: python donchian_main.py
 
+      # AUDNZD icin SIFIRDAN kurulan ortalamaya donus sistemi. Donchian ile
+      # ayni hesapta ama farkli sembolde, cakisma yok. Iki bot BILINCLI
+      # olarak zit ailelerde: metaller trend yapar, AUDNZD dar bantta
+      # salinir (varyans orani 0.885-0.934).
+      # Yedi indikator tek tek olculdu; MACD, RVI ve ADX bilgi TASIMIYOR
+      # cikti - bkz. ortalama_donus_bot.py modul basligi.
+      - name: "[Hesap 2 - 10000 USD] AUDNZD ortalamaya donus (1h)"
+        continue-on-error: true
+        env:
+          METAAPI_TOKEN: ${{ secrets.METAAPI_TOKEN }}
+          MT5_LOGIN: ${{ secrets.MT5_LOGIN_2 }}
+          MT5_PASSWORD: ${{ secrets.MT5_PASSWORD_2 }}
+          MT5_SERVER: ${{ secrets.MT5_SERVER_2 }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          HESAP_ETIKETI: "_hesap2"
+        run: python audnzd_donus_main.py
+
       # Ozetler gunde BIR KEZ gider - gunun ilk 12:00 UTC sonrasi
       # calistirmasinda. Tekrari, durum dosyasi (cache ile tasinan
       # ozet_gonderildi*.json) engelliyor.
@@ -109,6 +127,6 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           HESAP_ETIKETI: "_hesap2"
-          OZET_SEMBOLLER: "XAUUSD,XAGUSD"
-          OZET_BASLIK: "Gunluk durum - Donchian kirilim (10k)"
+          OZET_SEMBOLLER: "XAUUSD,XAGUSD,AUDNZD"
+          OZET_BASLIK: "Gunluk durum - Hesap 2 (10k)"
         run: python gunluk_ozet.py
