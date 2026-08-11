@@ -36,11 +36,17 @@ async def hesap_al():
                 "server": config.MT5_SERVER,
                 "platform": "mt5",
                 "magic": 123456,
-                # BELIRTILMEZSE MetaApi varsayilan olarak "high" verir ve
-                # maliyeti ~2 katina cikarir. Demo icin yedekli baglantiya
-                # gerek yok. UYARI: bu alan sonradan DEGISTIRILEMEZ - update
-                # ucu noktasi reliability'i kabul etmiyor (HTTP 400), hesabi
-                # silip yeniden olusturmak gerekir.
+                # UYARI (11.08.2026 - ONCEKI YORUM YANLISTI):
+                # Burada "regular" gonderiliyor ama MetaApi BUNU YOK SAYIYOR.
+                # Olculdu: yeni bir hesap bu alanla olusturuldu, API yine
+                # "high" kaydetti. Sonra dogrudan REST ile (SDK'yi atlayarak)
+                # reliability="regular" ile POST edildi - HTTP 201 dondu ama
+                # kayit yine "high" cikti. PUT ile guncelleme de HTTP 400
+                # ValidationError veriyor.
+                # Yani hesaplarin ucu de "high" ve bu DEGISTIRILEMIYOR;
+                # muhtemelen abonelik seviyesi ya da MetaQuotes-Demo icin
+                # zorunlu. Alan zararsiz oldugu icin birakildi, ama maliyet
+                # hesabi yapilirken "regular'a dusurduk" VARSAYILMAMALI.
                 "reliability": "regular",
             }
         )

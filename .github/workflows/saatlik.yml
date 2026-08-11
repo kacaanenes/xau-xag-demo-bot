@@ -83,22 +83,30 @@ jobs:
           HESAP_ETIKETI: "_hesap2"
         run: python donchian_main.py
 
-      # AUDNZD icin SIFIRDAN kurulan ortalamaya donus sistemi. Donchian ile
-      # ayni hesapta ama farkli sembolde, cakisma yok. Iki bot BILINCLI
-      # olarak zit ailelerde: metaller trend yapar, AUDNZD dar bantta
-      # salinir (varyans orani 0.885-0.934).
+      # AUDNZD icin SIFIRDAN kurulan ortalamaya donus sistemi.
+      #
+      # KENDI HESABINDA (hesap 3) calisir - Donchian ile ayni hesapta DEGIL.
+      # Sebep: lot hesabi ozsermayeye dayaniyor (bakiye = hesap["equity"]) ve
+      # ozsermaye acik pozisyonlarin anlik kar/zararini da icerir. Ayni
+      # hesapta olsalardi Donchian'in acik kari AUDNZD'nin lotunu buyutur,
+      # Donchian'in dususu kucultturdu. Marj havuzu ve dusus de ortak olurdu.
+      # Ayri hesap = ayri ozsermaye, ayri marj, ayri dusus; iki sistemin
+      # performansi birbirinden bagimsiz olculebilir.
+      #
+      # Iki bot BILINCLI olarak zit ailelerde: metaller kalici trend yapar,
+      # AUDNZD dar bantta salinir (varyans orani 0.885-0.934).
       # Yedi indikator tek tek olculdu; MACD, RVI ve ADX bilgi TASIMIYOR
       # cikti - bkz. ortalama_donus_bot.py modul basligi.
-      - name: "[Hesap 2 - 10000 USD] AUDNZD ortalamaya donus (1h)"
+      - name: "[Hesap 3 - 100k] AUDNZD ortalamaya donus (1h)"
         continue-on-error: true
         env:
           METAAPI_TOKEN: ${{ secrets.METAAPI_TOKEN }}
-          MT5_LOGIN: ${{ secrets.MT5_LOGIN_2 }}
-          MT5_PASSWORD: ${{ secrets.MT5_PASSWORD_2 }}
-          MT5_SERVER: ${{ secrets.MT5_SERVER_2 }}
+          MT5_LOGIN: ${{ secrets.MT5_LOGIN_3 }}
+          MT5_PASSWORD: ${{ secrets.MT5_PASSWORD_3 }}
+          MT5_SERVER: ${{ secrets.MT5_SERVER_3 }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          HESAP_ETIKETI: "_hesap2"
+          HESAP_ETIKETI: "_hesap3"
         run: python audnzd_donus_main.py
 
       # Ozetler gunde BIR KEZ gider - gunun ilk 12:00 UTC sonrasi
@@ -127,6 +135,20 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           HESAP_ETIKETI: "_hesap2"
-          OZET_SEMBOLLER: "XAUUSD,XAGUSD,AUDNZD"
-          OZET_BASLIK: "Gunluk durum - Hesap 2 (10k)"
+          OZET_SEMBOLLER: "XAUUSD,XAGUSD"
+          OZET_BASLIK: "Gunluk durum - Donchian kirilim (10k)"
+        run: python gunluk_ozet.py
+
+      - name: "[Hesap 3 - 100k] Gunluk durum ozeti (AUDNZD donus)"
+        continue-on-error: true
+        env:
+          METAAPI_TOKEN: ${{ secrets.METAAPI_TOKEN }}
+          MT5_LOGIN: ${{ secrets.MT5_LOGIN_3 }}
+          MT5_PASSWORD: ${{ secrets.MT5_PASSWORD_3 }}
+          MT5_SERVER: ${{ secrets.MT5_SERVER_3 }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          HESAP_ETIKETI: "_hesap3"
+          OZET_SEMBOLLER: "AUDNZD"
+          OZET_BASLIK: "Gunluk durum - AUDNZD ortalamaya donus (100k)"
         run: python gunluk_ozet.py
