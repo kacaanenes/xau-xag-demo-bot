@@ -2,6 +2,8 @@
 XAU/XAG parite serisini hesaplar."""
 from __future__ import annotations
 
+import datetime as dt
+
 import pandas as pd
 from metaapi_cloud_sdk import MetaApi
 
@@ -193,33 +195,107 @@ async def mum_verisi_getir(sembol: str, zaman_dilimi: str = "1h", adet: int = 50
     return df[["open", "high", "low", "close", "volume"]]
 
 
-async def cok_barli_getir(sembol: str, zaman_dilimi: str = "1h", adet: int = 3000) -> pd.DataFrame:
-    """Tek istekteki 1000 bar sinirini sayfalayarak asar.
+async def cok_barli_getir(sembol: str, zaman_dilimi: str = "1h", adet: int = 3000,
+                          delik_doldur: bool = False) -> pd.DataFrame:
+    """Tek istekteki 1000 bar sinirini asarak derin gecmis ceker.
 
-    NEDEN: ust zaman dilimi trend filtresi 24 saatlik EMA50 kullaniyor -
-    bu, en az 50 gunluk (1200 saat) veri demek, isinma payiyla ~3000 saat.
-    Tek istekle gelmiyor.
+    ZAMAN PENCERESIYLE yurur, BAR SAYISIYLA degil.
+
+    ------------------------------------------------------------------
+    NEDEN - 11.08.2026'da olculen ciddi bir hata
+    ------------------------------------------------------------------
+    ONCEKI HALI her turda onceki parcanin EN ESKI barini imlec yapiyordu:
+
+        p = get_historical_candles(..., start_time=imlec, limit=1000)
+        imlec = p[0]["time"]          # <-- parcanin en eskisi
+
+    MetaApi bazen ARALI bir parca donduruyor (1000 bar, ama 1000 saatlik
+    bir pencereden degil, cok daha genis bir araliktan). O zaman imlec
+    beklenenden cok geriye siciriyor ve ATLANAN PENCERE BIR DAHA
+    ISTENMIYOR. Sonuc: 18 yillik XAUUSD serisinde 210 tane 60+ saatlik
+    delik, en buyugu 554 saat (23 gun).
+
+    Bunun backteste etkisi kucuk degildi: ayni Donchian kurulumu, ayni
+    yillar, sadece bu veri farkiyla +%217.1 yerine +%40.2 veriyordu.
+
+    KAYIP KAYNAKTA DEGILDI: deliklerin ortasi ACIKCA istendiginde MetaApi
+    veriyi donduruyor (3 ayri delikte de 100/100 bar geldi). Yani sorun
+    tamamen bu fonksiyondaydi.
+
+    YENI HALI sabit zaman adimlariyla geriye yuruyor - her pencere mutlaka
+    bir kez isteniyor, atlama imkani yok. Sonra kalan delikler tek tek
+    doldurulmaya calisiliyor (hafta sonu bosluklari haric).
+
+    OLCULDU (18 yil):
+      XAUUSD  59.941 -> 106.077 bar,  60s+ delik 210 -> 42,  en buyuk 554s -> 86s
+      XAGUSD  59.941 -> 104.147 bar,  60s+ delik 192 -> 41,  en buyuk 483s -> 98s
 
     DIKKAT - brokerin kendi gunluk mumlari KULLANILMIYOR: onlarda 180-200
     adet eksik gun var ve EMA delikli seriden hesaplaninca bozuluyor.
-    Olculdu: broker gunlugu ile XAUUSD +%8.6, saatlikten turetilmis 24s ile
-    +%138.9. Saatlik veri daha yogun oldugu icin deliklerden az etkileniyor.
     """
     hesap = await hesap_al()
-    parcalar, imlec = [], None
-    while sum(len(p) for p in parcalar) < adet:
-        p = await hesap.get_historical_candles(sembol, zaman_dilimi, start_time=imlec, limit=1000)
-        if not p:
-            break
-        en_eski = p[0]["time"]
-        if imlec is not None and en_eski >= imlec:
-            break  # ilerleme yok, gecmis tukendi
-        parcalar.append(p)
-        imlec = en_eski
+    # Istenen bar sayisini kabaca zamana cevir: 24x5 piyasada haftada 120
+    # bar var, yani bar basina ~1.4 saat. Cömert davranip 2 kat pay birakiyoruz.
+    saat_gerekli = adet * 2
+    adim = dt.timedelta(days=40)        # 960 saat < 1000 bar limiti
+    simdi = dt.datetime.now(dt.timezone.utc)
+    bitis = simdi - dt.timedelta(hours=saat_gerekli)
 
-    df = pd.DataFrame([m for p in parcalar for m in p])
-    if df.empty:
+    ham = []
+    imlec = simdi
+    while imlec > bitis:
+        try:
+            p = await hesap.get_historical_candles(sembol, zaman_dilimi,
+                                                   start_time=imlec, limit=1000)
+            if p:
+                ham.extend(p)
+        except Exception as exc:  # noqa: BLE001 - tek pencere basarisiz olabilir
+            print(f"  (Veri penceresi alinamadi {imlec.date()}: {exc})")
+        imlec -= adim
+
+    df = _mum_cercevesi(ham)
+    if df.empty or len(df) < 10:
         return df
+
+    # DELIK DOLDURMA - varsayilan KAPALI.
+    # Her tur birkac ek API cagrisi demek ve olculdu: acikken sembol basina
+    # 53-77 saniye suruyor. Canli bot 15 dakikada bir, dort ayri is icin
+    # calisiyor - bu sure MetaApi baglanti maliyetini ciddi artirirdi.
+    # Canli sinyal icin son 1500 barin butunlugu zaten yeterli; asil onemli
+    # oldugu yer BACKTEST verisi toplamak, orada acikca True gecilir.
+    if not delik_doldur:
+        return df
+    # Hafta sonu (40-75 saat) dogal, atlanir.
+    for _ in range(3):
+        farklar = df.index.to_series().diff().dt.total_seconds() / 3600
+        delikler = [(df.index[i-1], df.index[i]) for i in range(1, len(df))
+                    if farklar.iloc[i] > 3 and not (40 <= farklar.iloc[i] <= 75)]
+        if not delikler:
+            break
+        yeni_barlar = []
+        for onceki, sonraki in delikler[:200]:
+            try:
+                p = await hesap.get_historical_candles(sembol, zaman_dilimi,
+                                                       start_time=sonraki, limit=1000)
+                if p:
+                    yeni_barlar.extend(p)
+            except Exception:  # noqa: BLE001 - delik doldurulamadi, devam
+                pass
+        if not yeni_barlar:
+            break
+        onceki_adet = len(df)
+        ham.extend(yeni_barlar)
+        df = _mum_cercevesi(ham)
+        if len(df) == onceki_adet:
+            break
+    return df
+
+
+def _mum_cercevesi(mumlar: list) -> pd.DataFrame:
+    """Ham mum listesini tekrarsiz, sirali DataFrame'e cevirir."""
+    if not mumlar:
+        return pd.DataFrame()
+    df = pd.DataFrame(mumlar)
     df["time"] = pd.to_datetime(df["time"])
     df = df.set_index("time").sort_index()
     df = df[~df.index.duplicated(keep="first")]
