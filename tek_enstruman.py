@@ -366,9 +366,27 @@ class TekEnstrumanBot:
             return
 
         if self.izinli_saatler is not None:
-            saat = dt.datetime.now(dt.timezone.utc).hour
+            # SINYAL BARININ saati - duvar saati DEGIL.
+            #
+            # ONCEKI HATA (19.08.2026 duzeltmesi): burada
+            # dt.datetime.now().hour kullaniliyordu. Bot 12:07'de calisir,
+            # sinyali 11:00 barindan alir (son KAPANMIS bar), ama filtreye
+            # "12" diye sorardi. Backtest ise sinyal barinin saatine bakar
+            # (backtest.py _pozisyon_simulasyonu: df.index[i].hour). Yani
+            # izinli pencere canlida bir saat KAYIYORDU:
+            #   izinli_saatler = (12..20, 22, 23)
+            #   canlinin fiilen isledigi sinyal barlari = (11..19, 21, 22)
+            # Sonuc: ozellikle dislanan 21:00 rollover bari ISLENIYOR,
+            # buna karsilik 20:00 bari ATLANIYORDU.
+            #
+            # OLCULDU (maliyet sonrasi, 14.7 yil): dogru pencere XAU'da
+            # +29.8R, XAG'da +24.9R daha iyi. Son 5 yilda ise XAU +19.7R,
+            # XAG -6.4R - yani fark tutarli bir kazanc kaynagi DEGIL.
+            # Duzeltmenin gerekcesi para degil, canli ile backtest'in ayni
+            # seyi olcmesi.
+            saat = df.index[-1].hour
             if saat not in self.izinli_saatler:
-                print(f"  Sinyal var ({yon}) ama saat {saat:02d}:xx UTC islem penceresi disinda - atlaniyor.")
+                print(f"  Sinyal var ({yon}) ama sinyal bari {saat:02d}:00 UTC islem penceresi disinda - atlaniyor.")
                 return
 
         # UST TREND FILTRESI: ust zaman diliminin trendine TERS sinyal alinmaz.
