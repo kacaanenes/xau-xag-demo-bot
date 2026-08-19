@@ -40,6 +40,7 @@ yanlis ailede calisti.
 | `backtest.py` | Olcum motoru - bar-ici stop/hedef tespitli |
 | `bar_kilidi.py` | Bar basina TEK giris (yerel kayit + broker gecmisi, iki katman) |
 | `kapanis_bildirimi.py`, `telegram_bildirim.py`, `gunluk_ozet.py` | Bildirim |
+| `kosum_kontrol.py` | Calistirma saglik kontrolu - cokme ve durus tespiti |
 | `kayma_kaydi.py`, `gosterim.py`, `veri_cek.py`, `hesap_baglan.py` | Yardimci |
 
 ## Emekli dosyalar (workflow calistirmiyor)
@@ -70,3 +71,23 @@ birlikte** duruyor:
 - **Eksik veri** - sayfalamada atlanan pencereler sessizce delik birakabilir
 - **Maliyet modeli** - spread'i mutlak mi yuzde mi sabit varsaydigin sonucu
   tersine cevirebilir; ikisini de raporla
+
+## Izleme - neden yesil tike guvenilmez
+
+Bot adimlarinda `continue-on-error: true` var (bir bot cokerse digerleri
+calismali). Yan etkisi: **adim cokse bile is yesil gorunur.** 19.08.2026'da
+Hesap 3'un 8 gundur hic islem yapmadigi bu yuzden fark edilmedi.
+
+`kosum_kontrol.py` bu kor noktayi kapatir - her calistirmanin sonunda:
+
+- Adimlarin `outcome` degerini okur (continue-on-error uygulanmadan
+  ONCEKI gercek sonuc), hata varsa Telegram'a bildirir ve isi **kirmizi**
+  yapar.
+- Onceki calistirmadan bu yana gecen sureyi olcer; 45 dakikayi asmissa
+  "botlar N dakika calismadi" uyarisi gonderir.
+
+**Tetikleme guvenilir degil:** olculdu (19.08.2026), cron beklenen 88
+tetiklemeden 14'unu yapti (%16), iki tetikleme arasi ortalama 93 dakika.
+Botlari fiilen ayakta tutan sey, bu depo DISINDAN gelen 15 dakikalik
+`workflow_dispatch` cagrilari. Cron sadece yedek; o harici kaynak durursa
+yukaridaki bosluk uyarisi haber verir.

@@ -2,12 +2,26 @@ name: Demo Botlari (XAU/XAG + AUDNZD) - 15dk
 
 on:
   schedule:
-    # 15 dakikada bir ama TUHAF dakikalarda (7/22/37/52), yuvarlak
-    # dakikalarda DEGIL. GitHub'in zamanlayicisi :00/:15/:30/:45
-    # slotlarinda asiri yuklenir (herkes oraya program yazar) ve bu
-    # slotlardaki isler ciddi gecikir ya da tamamen atlanir - "*/15" ile
-    # denendiginde 35 dakikada 3 tetikleme ust uste kacirildi. Yogun
-    # olmayan dakikalara kaydirmak, GitHub'in kendi onerdigi cozumdur.
+    # DIKKAT - BU CRON GUVENILIR DEGIL, OLCULDU (19.08.2026):
+    #
+    # Tuhaf dakikalara (7/22/37/52) kaydirma, yuvarlak dakikalardaki
+    # yigilmayi asmak icin yapilmisti - ama sorunu COZMEDI. 100 calistirma
+    # incelendiginde (18.08 21:45 -> 19.08 19:00):
+    #     beklenen cron tetiklemesi : ~88
+    #     gerceklesen               :  14   (%16)
+    #     iki tetikleme arasi ort.  :  93 dakika (en uzunu 202 dakika)
+    #     tetiklenenler de :48 - :12 arasina dagilmis (20 dakikaya varan
+    #     gecikme) - yani dakika secimi de tutmuyor
+    #
+    # Botlari fiilen ayakta tutan sey, ayni pencerede gelen 86 adet HARICI
+    # workflow_dispatch cagrisi (:00/:15/:30/:45). Yani asil tetikleyici
+    # bu depo DISINDA ve o kaynak durursa botlar gunde 96 yerine ~14 kez
+    # calisir. Cron burada sadece YEDEK.
+    #
+    # Cron'a daha fazla satir eklemek denenebilirdi ama her ek tetikleme
+    # MetaApi cagrisi demek; onun yerine "Calistirma saglik kontrolu"
+    # adimi calistirmalar arasi boslugu olcup 45 dakikayi asinca Telegram'a
+    # haber veriyor. Yani sessiz durus artik imkansiz.
     - cron: "7,22,37,52 * * * *"
   workflow_dispatch: {}
 
@@ -39,12 +53,14 @@ jobs:
             bildirilen_kapanislar*.json
             ozet_gonderildi*.json
             son_giris_bari_*.json
+            son_kosum.json
             kayma_kaydi*.jsonl
           key: kapanis-durumu-${{ github.run_id }}
           restore-keys: |
             kapanis-durumu-
 
       - name: XAUUSD botunu calistir
+        id: xau
         continue-on-error: true
         env:
           METAAPI_TOKEN: ${{ secrets.METAAPI_TOKEN }}
@@ -56,6 +72,7 @@ jobs:
         run: python xau_main.py
 
       - name: XAGUSD botunu calistir
+        id: xag
         continue-on-error: true
         env:
           METAAPI_TOKEN: ${{ secrets.METAAPI_TOKEN }}
@@ -72,6 +89,7 @@ jobs:
       # butun dayaniklilik testlerinden gecen ilk kurulum - bkz.
       # donchian_bot.py docstring'i.
       - name: "[Hesap 2 - 10000 USD] Donchian kirilim botu (XAU+XAG, 4h)"
+        id: donchian
         continue-on-error: true
         env:
           METAAPI_TOKEN: ${{ secrets.METAAPI_TOKEN }}
@@ -98,6 +116,7 @@ jobs:
       # Yedi indikator tek tek olculdu; MACD, RVI ve ADX bilgi TASIMIYOR
       # cikti - bkz. ortalama_donus_bot.py modul basligi.
       - name: "[Hesap 3 - 100k] AUDNZD ortalamaya donus (1h)"
+        id: audnzd
         continue-on-error: true
         env:
           METAAPI_TOKEN: ${{ secrets.METAAPI_TOKEN }}
@@ -113,6 +132,7 @@ jobs:
       # calistirmasinda. Tekrari, durum dosyasi (cache ile tasinan
       # ozet_gonderildi*.json) engelliyor.
       - name: "[Hesap 1 - 100k] Gunluk durum ozeti"
+        id: ozet1
         continue-on-error: true
         env:
           METAAPI_TOKEN: ${{ secrets.METAAPI_TOKEN }}
@@ -126,6 +146,7 @@ jobs:
         run: python gunluk_ozet.py
 
       - name: "[Hesap 2 - 10k] Gunluk durum ozeti (Donchian)"
+        id: ozet2
         continue-on-error: true
         env:
           METAAPI_TOKEN: ${{ secrets.METAAPI_TOKEN }}
@@ -140,6 +161,7 @@ jobs:
         run: python gunluk_ozet.py
 
       - name: "[Hesap 3 - 100k] Gunluk durum ozeti (AUDNZD donus)"
+        id: ozet3
         continue-on-error: true
         env:
           METAAPI_TOKEN: ${{ secrets.METAAPI_TOKEN }}
@@ -152,3 +174,32 @@ jobs:
           OZET_SEMBOLLER: "AUDNZD"
           OZET_BASLIK: "Gunluk durum - AUDNZD ortalamaya donus (100k)"
         run: python gunluk_ozet.py
+
+      # ADIM SONUCLARINI KONTROL ET - continue-on-error maskesini kaldirir.
+      #
+      # Yukaridaki bot adimlarinin hepsinde continue-on-error: true var ve
+      # bu DOGRU: bir bot cokerse digerleri calismaya devam etmeli. Ama yan
+      # etkisi, adim cokse bile isin YESIL gorunmesi - 19.08.2026'da Hesap
+      # 3'un 8 gundur hic islem yapmadigi bu yuzden fark edilmedi.
+      #
+      # Bu adim `outcome` degerlerini (continue-on-error UYGULANMADAN
+      # ONCEKI gercek sonuc) okur, hata varsa Telegram'a bildirir ve isi
+      # KIRMIZI yapar. Botlar bu noktada zaten calismis olur.
+      #
+      # Ayrica bir onceki calistirmadan bu yana gecen sureyi olcer: cron
+      # guvenilir tetiklemedigi icin (olculdu: 88 beklenen tetiklemeden 14'u
+      # gerceklesti) botlari harici dispatch cagrilari ayakta tutuyor. O
+      # kaynak durursa bu adim haber verir.
+      - name: "Calistirma saglik kontrolu"
+        if: always()
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          ADIM_XAUUSD_botu: ${{ steps.xau.outcome }}
+          ADIM_XAGUSD_botu: ${{ steps.xag.outcome }}
+          ADIM_Donchian_hesap2: ${{ steps.donchian.outcome }}
+          ADIM_AUDNZD_donus_hesap3: ${{ steps.audnzd.outcome }}
+          ADIM_Ozet_hesap1: ${{ steps.ozet1.outcome }}
+          ADIM_Ozet_hesap2: ${{ steps.ozet2.outcome }}
+          ADIM_Ozet_hesap3: ${{ steps.ozet3.outcome }}
+        run: python kosum_kontrol.py

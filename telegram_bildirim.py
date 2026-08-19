@@ -1,8 +1,11 @@
 """Telegram bildirimi - SADECE anlamli olaylarda.
 
 Bot 15 dakikada bir calisiyor; her turda "sinyal yok" mesaji atmak gunde
-~96 bildirim demek olurdu. Bu yuzden sadece su uc olayda mesaj gider:
-pozisyon acildi, pozisyon kapandi, stop basabasa cekildi.
+~96 bildirim demek olurdu. Bu yuzden sadece su olaylarda mesaj gider:
+pozisyon acildi, pozisyon kapandi, stop basabasa cekildi - ve ayrica
+SISTEM UYARISI (bir bot adimi coktu ya da botlar uzun sure hic calismadi;
+bkz. kosum_kontrol.py). Sistem uyarisi da nadir bir olaydir: her sey
+yolundayken hic gonderilmez.
 
 Telegram yapilandirilmamissa (token/chat_id yoksa) sessizce atlanir -
 bildirim gonderememek botun islem yapmasini ENGELLEMEMELI.
@@ -31,6 +34,14 @@ def _gonder(metin: str) -> None:
         except requests.RequestException as exc:
             # Bildirim gonderilemedi diye islem akisi bozulmamali
             print(f"  (Telegram bildirimi gonderilemedi: {exc})")
+
+
+def sistem_uyarisi(baslik: str, satirlar: list[str]) -> None:
+    """Islem degil, SISTEM sorunu bildirir (bot adimi coktu, botlar
+    calismadi vb.). Ayri bir fonksiyon olmasinin sebebi, islem
+    bildirimleriyle karismamasi: bu mesajlar hesapla degil, ALTYAPIYLA
+    ilgilidir ve gorulmezse sessiz bir durus fark edilmeden gecer."""
+    _gonder(f"🚨 <b>{baslik}</b>\n\n" + "\n".join(satirlar))
 
 
 def pozisyon_acildi(sembol: str, yon: str, lot: float, giris: float,
