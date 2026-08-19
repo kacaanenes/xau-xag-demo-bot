@@ -1,4 +1,5 @@
-"""Acik parite pozisyonunun rasyo-bazli giris/stop/hedef bilgisini yerel
+"""[EMEKLI - sadece parite botu kullanir, workflow calistirmiyor]
+Acik parite pozisyonunun rasyo-bazli giris/stop/hedef bilgisini yerel
 dosyada tutar - MT5'in kendisi 'rasyo pozisyonu' kavramini bilmedigi icin
 bu takibi biz yapiyoruz."""
 from __future__ import annotations

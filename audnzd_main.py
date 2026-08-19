@@ -47,6 +47,7 @@ boyle bir merkezi seansi yok.
 Artik metallerle AYNI kurulumu kullaniyor (tek fark: saat filtresi yok).
 Bu sayede audnzd_emir.py'ye de gerek kalmadi - TekEnstrumanBot lot, kur
 cevrimi, broker sinirlari ve kaldirac tavanini zaten yonetiyor.
+(audnzd_emir.py 19.08.2026'da silindi - hicbir dosya import etmiyordu.)
 
 SADECE demo hesap icindir. Canli/gercek hesaba asla baglanmamali."""
 from __future__ import annotations

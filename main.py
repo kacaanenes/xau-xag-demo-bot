@@ -1,4 +1,4 @@
-"""XAU/XAG parite demo botu - orkestrasyon. Duzeltilmis MEAN-REVERSION
+"""[EMEKLI - workflow calistirmiyor] XAU/XAG parite demo botu - orkestrasyon. Duzeltilmis MEAN-REVERSION
 stratejisiyle calisir (kapanis-bazli ATR + 1:2 risk/odul - backtest'te
 confluence'a gore acikca daha iyi cikti: 56 islem, %55.4 isabet, +$762,
 iki yaride de kazandirdi). Pozisyon yokken rasyo kendi Bollinger bandinin

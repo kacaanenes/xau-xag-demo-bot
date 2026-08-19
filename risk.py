@@ -6,7 +6,6 @@ import teknik
 
 SL_ATR_CARPANI = 1.5
 RISK_ODUL_ORANI = 1.5
-LOT = 0.01  # artik kullanilmiyor, geriye uyumluluk icin birakildi
 
 # Bacak-seviyesi stoplar artik asil karar mekanizmasi degil, sadece dongu
 # calismazsa diye bir felaket guvenlik agi - bu yuzden normalden cok daha
@@ -125,11 +124,17 @@ def broker_sinirina_uydur(giris: float, stop: float, hedef: float, alis_mi: bool
 
 def stop_ve_hedef_hesapla(df, giris_fiyati: float, alis_mi: bool, atr_carpani: float = SL_ATR_CARPANI,
                            risk_odul_orani: float = RISK_ODUL_ORANI, kapanis_bazli_atr: bool = True) -> dict:
-    """kapanis_bazli_atr VARSAYILAN OLARAK True: tum stratejilerimiz
-    backtest'te kapanis-bazli ATR ile olculdu. Onceki halinde bu fonksiyon
-    her zaman yuksek/dusuk-bazli ATR kullaniyordu ve stoplar backtest'in
-    varsaydiginin ~2 kati genis cikiyordu (XAG'de 0.634 yerine 0.285
-    olmaliydi) - yani canli islem geometrisi olculen geometriden farkliydi.
+    """kapanis_bazli_atr - DIKKAT, varsayilan (True) ARTIK GECERLI DEGIL.
+
+    Bu varsayilan, emekli parite (XAU/XAG rasyosu) botu icin dogruydu:
+    orada high/low iki ayri enstrumanin teorik birlesimiydi, gercek bar-ici
+    aralik degildi. CANLI tek-enstruman botlari bunu ACIKCA False geciyor
+    (bkz. tek_enstruman.py'deki kapanis_bazli_atr aciklamasi): XAGUSD ve
+    XAUUSD'nin gercek yuksek/dusuk verisi var ve kapanis-bazli ATR gercek
+    dalgalanmayi yarisi kadar olcup stoplari asiri daraltiyordu.
+
+    Varsayilan degistirilmedi cunku onu kullanan emekli kod (emir.py) hala
+    duruyor - ama YENI cagirilarda deger ACIKCA gecilmeli.
 
     risk_odul_orani da artik parametre: modul sabitine (1.5) sabitlenmisti,
     botun kendi ayari (metallerde 2.0) hic kullanilmiyordu."""

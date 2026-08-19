@@ -1,10 +1,16 @@
 """AUDNZD ortalamaya donus botu - calistirma girisi.
 
-Hesap 2'de (10k) Donchian kirilim botunun YANINDA calisir. Cakisma yok:
-Donchian XAUUSD/XAGUSD'de, bu AUDNZD'de. Ucu birden acik olursa toplam
-risk %1.5 (islem basi %0.5).
+KENDI HESABINDA calisir - Hesap 3 (100k). Donchian kirilim botu (Hesap 2,
+10k) ile AYNI HESAPTA DEGIL; workflow'daki gerekce: lot hesabi ozsermayeye
+dayaniyor (bakiye = hesap["equity"]) ve ozsermaye acik pozisyonlarin anlik
+kar/zararini da icerir. Ayni hesapta olsalardi Donchian'in acik kari bu
+botun lotunu buyutur, dususu kucultturdu. Ayri hesap = ayri ozsermaye,
+ayri marj, ayri dusus; iki sistemin performansi bagimsiz olculebilir.
 
-Iki bot BILINCLI olarak zit ailelerde:
+Bu bot kendi hesabinda tek basina calistigi icin ayni anda acik olabilecek
+tek pozisyonu vardir - islem basi risk %0.5.
+
+Iki bot (ayri hesaplarda olsalar da) BILINCLI olarak zit ailelerde:
   Donchian (XAU/XAG, 4 saatlik) : TREND takip, hedefsiz, iz suren stop
   bu bot   (AUDNZD, 1 saatlik)  : ORTALAMAYA DONUS, 1R hedef, iz suren yok
 Cunku enstrumanlarin olculen karakteri farkli - metaller kalici trend

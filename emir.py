@@ -1,4 +1,5 @@
-"""Parite sinyaline gore XAUUSD + XAGUSD bacaklarini AYNI ANDA acar.
+"""[EMEKLI - sadece parite botu kullanir, workflow calistirmiyor]
+Parite sinyaline gore XAUUSD + XAGUSD bacaklarini AYNI ANDA acar.
 SADECE demo hesap icindir - gercek/canli hesaba asla baglanmamali."""
 from __future__ import annotations
 
