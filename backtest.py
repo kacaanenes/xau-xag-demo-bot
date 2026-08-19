@@ -77,6 +77,41 @@ def pandas_nan(deger) -> bool:
     return deger != deger  # NaN != NaN
 
 
+def ust_trend_serisi(df, saat: int = 24, ema_periyot: int = 50):
+    """UST ZAMAN DILIMI TREND FILTRESI - her saatlik bar icin
+    True (yukselis) / False (dusus) / None (henuz hesaplanamiyor).
+
+    CANLI KARSILIGI: tek_enstruman.ust_trend_yukselis_mi. Ikisi AYNI seyi
+    hesaplamali - filtre canli botun en etkili bileseni (XAUUSD: filtresiz
+    -49R, filtreli +50R) ve daha once bir kez GELECEGE BAKIS hatasiyla
+    olculmustu. Backtest'te karsiligi olmadigi surece o hatanin tekrari
+    yakalanamaz; bu fonksiyon o boslugu kapatir.
+
+    GELECEGE BAKIS NASIL ENGELLENIR: resample kovanin ETIKETINI basa
+    (00:00), DEGERINI sona (23:00) koyar. shift(1) ile bir kova geri
+    kaydirilir, boylece bir saatlik bar SADECE kendisinden ONCE KAPANMIS
+    kovalarin EMA'sini gorur. (Canli kod ayni seyi ema.iloc[-2] ile yapar:
+    son kova henuz tamamlanmamistir.)
+
+    None dondugu barlarda (isinma) filtre UYGULANMAZ - canli kodun
+    "ust trend hesaplanamadi, filtre uygulanmadi" dalinin karsiligi."""
+    ust = df["close"].resample(f"{saat}h").last().dropna()
+    ema = ust.ewm(span=ema_periyot, adjust=False).mean().shift(1)
+    hizali = ema.reindex(df.index, method="ffill")
+    return [None if pandas_nan(e) else bool(k > e)
+            for k, e in zip(df["close"], hizali)]
+
+
+def _ust_trende_gore_ele(yonler, df, saat: int | None, ema_periyot: int = 50):
+    """Ust trende TERS sinyalleri eler. saat None ise hicbir sey yapmaz."""
+    if saat is None:
+        return yonler
+    trend = ust_trend_serisi(df, saat, ema_periyot)
+    return [y if (y is None or trend[i] is None or (y == "AL") == trend[i]) else None
+            for i, y in enumerate(yonler)]
+
+
+
 def _pozisyon_simulasyonu(df, yon_serisi, sl_atr_carpani: float, risk_odul_orani: float, sinyal_tersine_cikis: bool,
                            kapanis_bazli_atr: bool = False,
                            basabas_r: float | None = None, iz_atr_carpani: float | None = None,
@@ -244,8 +279,10 @@ def confluence_backtest(df, esik: int = 4, sl_atr_carpani: float = 1.5, risk_odu
                          sinyal_tersine_cikis: bool = True, kapanis_bazli_atr: bool = False,
                          gostergeler: tuple = _TUM_GOSTERGELER, basabas_r: float | None = None,
                          iz_atr_carpani: float | None = None, izinli_saatler=None,
-                             kotu_saatte_kari_al: bool = False) -> dict:
-    yon_serisi = _yon_serisi_confluence(df, esik, gostergeler)
+                         kotu_saatte_kari_al: bool = False,
+                         ust_trend_saat: int | None = None, ust_trend_ema: int = 50) -> dict:
+    yon_serisi = _ust_trende_gore_ele(_yon_serisi_confluence(df, esik, gostergeler),
+                                       df, ust_trend_saat, ust_trend_ema)
     islemler = _pozisyon_simulasyonu(df, yon_serisi, sl_atr_carpani, risk_odul_orani, sinyal_tersine_cikis,
                                       kapanis_bazli_atr, basabas_r, iz_atr_carpani, izinli_saatler, kotu_saatte_kari_al)
     return _ozet_hesapla(islemler)
@@ -255,8 +292,14 @@ def mean_reversion_backtest(df, periyot: int = 20, sapma: float = 2.0, sl_atr_ca
                              risk_odul_orani: float = 1.5, sinyal_tersine_cikis: bool = False,
                              kapanis_bazli_atr: bool = False, basabas_r: float | None = None,
                              iz_atr_carpani: float | None = None, izinli_saatler=None,
-                             kotu_saatte_kari_al: bool = False) -> dict:
-    yon_serisi = _yon_serisi_mean_reversion(df, periyot, sapma)
+                             kotu_saatte_kari_al: bool = False,
+                             ust_trend_saat: int | None = None, ust_trend_ema: int = 50) -> dict:
+    """ust_trend_saat: ust zaman dilimi trend filtresi (bkz. ust_trend_serisi).
+    VARSAYILAN None = KAPALI, boylece eski olcumler aynen tekrarlanabilir.
+    CANLI metal botlari 24 ile calisir - onlarla ayni sonucu almak icin
+    ust_trend_saat=24 gecilmeli."""
+    yon_serisi = _ust_trende_gore_ele(_yon_serisi_mean_reversion(df, periyot, sapma),
+                                       df, ust_trend_saat, ust_trend_ema)
     islemler = _pozisyon_simulasyonu(df, yon_serisi, sl_atr_carpani, risk_odul_orani, sinyal_tersine_cikis, kapanis_bazli_atr, basabas_r, iz_atr_carpani, izinli_saatler, kotu_saatte_kari_al)
     return _ozet_hesapla(islemler)
 
