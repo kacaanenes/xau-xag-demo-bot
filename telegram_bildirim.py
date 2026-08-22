@@ -118,6 +118,27 @@ def stop_kara_gecti(sembol: str, yon: str, giris: float, yeni_stop: float,
     )
 
 
+def kagit_acildi(sembol: str, kaynak: str, yon: str, giris: float, stop: float,
+                 risk: float) -> None:
+    """KAGIT pozisyon acildi - gercek emir GONDERILMEDI.
+
+    Gercek islem bildirimlerinden ayirt edilebilmesi sart: bu mesajlar
+    hesapta hicbir sey degistirmez, sadece takip icindir."""
+    ok = "🟢" if yon == "AL" else "🔴"
+    _gonder(
+        f"📝 <b>[KAGIT] {sembol} ({kaynak}) — {yon}</b>\n\n"
+        f"{ok} Giriş: <b>{giris:.2f}</b>\n"
+        f"Stop: {stop:.2f}  ({risk:.2f} uzakta = 1R)\n"
+        f"Hedef: yok — iz süren stop 4×ATR\n\n"
+        f"<i>Gerçek emir gönderilmedi. Sadece takip.</i>"
+    )
+
+
+def kagit_ozet(baslik: str, satirlar: list[str]) -> None:
+    """Kagit takibin gunluk ozeti."""
+    _gonder(f"📝 <b>{baslik}</b>\n\n" + "\n".join(satirlar))
+
+
 def basabasa_cekildi(sembol: str, giris: float) -> None:
     _gonder(
         f"🛡 <b>{sembol} — başabaş korumasi</b>\n\n"

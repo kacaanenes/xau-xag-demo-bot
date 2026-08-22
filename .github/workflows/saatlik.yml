@@ -56,6 +56,8 @@ jobs:
             son_kosum.json
             kayma_kaydi*.jsonl
             kagit_ab*.jsonl
+            kagit_ab_acilis*.json
+            kagit_ab_ozet*.json
           key: kapanis-durumu-${{ github.run_id }}
           restore-keys: |
             kapanis-durumu-

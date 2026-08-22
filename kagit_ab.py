@@ -125,6 +125,40 @@ BASLANGIC_BAKIYE = 100_000.0
 
 _ETIKET = os.getenv("HESAP_ETIKETI", "")
 KAYIT = pathlib.Path(__file__).parent / f"kagit_ab{_ETIKET}.jsonl"
+ACILIS_KAYIT = pathlib.Path(__file__).parent / f"kagit_ab_acilis{_ETIKET}.json"
+OZET_KAYIT = pathlib.Path(__file__).parent / f"kagit_ab_ozet{_ETIKET}.json"
+
+
+def _bildirilen_acilislar() -> set:
+    if not ACILIS_KAYIT.exists():
+        return set()
+    try:
+        return set(tuple(x) for x in json.loads(ACILIS_KAYIT.read_text()))
+    except (json.JSONDecodeError, OSError, TypeError):
+        return set()
+
+
+def _acilis_kaydet(kume: set) -> None:
+    try:
+        ACILIS_KAYIT.write_text(json.dumps(sorted(list(x) for x in kume)))
+    except OSError as exc:
+        print(f"  (Acilis kaydi yazilamadi: {exc})")
+
+
+def _ozet_bugun_gonderildi() -> bool:
+    if not OZET_KAYIT.exists():
+        return False
+    try:
+        return json.loads(OZET_KAYIT.read_text()).get("gun") == dt.date.today().isoformat()
+    except (json.JSONDecodeError, OSError):
+        return False
+
+
+def _ozet_isaretle() -> None:
+    try:
+        OZET_KAYIT.write_text(json.dumps({"gun": dt.date.today().isoformat()}))
+    except OSError:
+        pass
 
 
 def _sekiz_saatlik(ham: pd.DataFrame) -> pd.DataFrame:
@@ -329,7 +363,51 @@ async def calistir() -> None:
             print(f"  {etiket}: KAGIT POZISYON {acik['yon']} @ {acik['giris']} | "
                   f"stop {acik['stop']} | {kar_r:+.2f}R | {acik['bar']} bar")
 
+    # YENI ACILISLARI BILDIR
+    bildirilen = _bildirilen_acilislar()
+    for etiket, acik, isinma in (("A", a_acik, a_isinma), ("B", b_acik, b_isinma)):
+        if acik is None or isinma:
+            continue
+        anahtar = (etiket, acik["giris_zaman"])
+        if anahtar in bildirilen or ilk_calistirma:
+            continue
+        bildirilen.add(anahtar)
+        telegram_bildirim.kagit_acildi(SEMBOL, etiket, acik["yon"], acik["giris"],
+                                       acik["stop"], acik["risk"])
+        print(f"  KAGIT ACILIS BILDIRILDI: {etiket} {acik['yon']} @ {acik['giris']}")
+    if ilk_calistirma:
+        for etiket, acik, isinma in (("A", a_acik, a_isinma), ("B", b_acik, b_isinma)):
+            if acik is not None and not isinma:
+                bildirilen.add((etiket, acik["giris_zaman"]))
+    _acilis_kaydet(bildirilen)
+
     o = ozet()
     if o:
         print(f"  TOPLAM KAGIT: {o['islem']} islem, isabet %{o['isabet']:.0f}, "
               f"{o['toplam_R']:+.1f}R, getiri %{o['getiri']:+.2f}, azami dusus %{o['dusus']:.1f}")
+
+    # GUNLUK OZET - gunde bir kez, 12:00 UTC sonrasi ilk calistirmada
+    simdi = dt.datetime.now(dt.timezone.utc)
+    if simdi.hour >= 12 and not _ozet_bugun_gonderildi() and not ilk_calistirma:
+        satirlar = [f"Başlangıç: {BASLANGIC}  ·  {SEMBOL} {BAR_SAATI} saatlik", ""]
+        for etiket, acik, isinma in (("A", a_acik, a_isinma), ("B", b_acik, b_isinma)):
+            if acik is None:
+                satirlar.append(f"<b>{etiket}</b>: pozisyon yok")
+            elif isinma:
+                satirlar.append(f"<b>{etiket}</b>: ısınma pozisyonu (sayılmıyor)")
+            else:
+                anlik = float(ham["close"].iloc[-1])
+                isaret = 1 if acik["yon"] == "AL" else -1
+                kar = (anlik - acik["giris"]) * isaret / acik["risk"]
+                satirlar.append(f"<b>{etiket}</b>: {acik['yon']} @ {acik['giris']:.2f} "
+                                f"| stop {acik['stop']:.2f} | {kar:+.2f}R")
+        if o:
+            satirlar += ["", f"<b>Toplam:</b> {o['islem']} işlem, isabet %{o['isabet']:.0f}",
+                         f"Getiri: <b>%{o['getiri']:+.2f}</b>  ·  azami düşüş %{o['dusus']:.1f}",
+                         f"Toplam R: {o['toplam_R']:+.1f}"]
+        else:
+            satirlar += ["", "<i>Henüz kapanmış kâğıt işlem yok.</i>"]
+        satirlar += ["", "<i>Gerçek emir gönderilmiyor — sadece takip.</i>"]
+        telegram_bildirim.kagit_ozet("KAĞIT TAKİP — günlük durum", satirlar)
+        _ozet_isaretle()
+        print("  Gunluk kagit ozeti gonderildi.")
