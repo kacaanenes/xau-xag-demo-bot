@@ -55,6 +55,7 @@ jobs:
             son_giris_bari_*.json
             son_kosum.json
             kayma_kaydi*.jsonl
+            kagit_ab*.jsonl
           key: kapanis-durumu-${{ github.run_id }}
           restore-keys: |
             kapanis-durumu-
@@ -127,6 +128,22 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           HESAP_ETIKETI: "_hesap3"
         run: python audnzd_donus_main.py
+
+      # KAGIT TAKIP - GERCEK EMIR GONDERMEZ.
+      # A+B birlesik sistemi (XAUUSD 8 saatlik) hesap acmadan once canli
+      # veriyle izleniyor. Hesap 1'in kimligiyle baglanir ama sadece FIYAT
+      # okur; pozisyon acmaz/kapatmaz. Bkz. kagit_ab.py modul basligi.
+      - name: "[KAGIT] A+B sistemi takip (XAUUSD 8h)"
+        id: kagit
+        continue-on-error: true
+        env:
+          METAAPI_TOKEN: ${{ secrets.METAAPI_TOKEN }}
+          MT5_LOGIN: ${{ secrets.MT5_LOGIN }}
+          MT5_PASSWORD: ${{ secrets.MT5_PASSWORD }}
+          MT5_SERVER: ${{ secrets.MT5_SERVER }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python kagit_ab_main.py
 
       # Ozetler gunde BIR KEZ gider - gunun ilk 12:00 UTC sonrasi
       # calistirmasinda. Tekrari, durum dosyasi (cache ile tasinan
