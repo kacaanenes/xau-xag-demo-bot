@@ -48,6 +48,36 @@ UYARI - kazanc REJIME bagli:
   %1-5, trend yaparsa %10-40 beklenmeli. Kotu rejimde de KAYBETMIYOR:
   2013'te altin -%28 iken sistem +%3.4, 2015'te altin -%11 iken -%3.1.
 
+--------------------------------------------------------------------------
+GERCEKCILIK - NE MODELLENIYOR, NE MODELLENMIYOR
+--------------------------------------------------------------------------
+MODELLENEN (gercek islemle ayni):
+  - brokerin GERCEK canli fiyat verisi
+  - bar-ici stop tespiti (bar kapanisi degil, gercek yuksek/dusuk)
+  - BOSLUK GERCEKCI dolum: stopun otesinde acilan bar, stop fiyatindan
+    DEGIL acilis fiyatindan doldurur (hafta sonu/haber bosluklari)
+  - islem maliyeti: her isleme SPREAD (0.30) dusulur
+  - iz suren stop yalnizca bar KAPANISINDA guncellenir
+  - pozisyon acikken yeni sinyal alinmaz
+
+MODELLENMEYEN (kagit sonuc bu kadar IYIMSER):
+  1. GIRIS GECIKMESI. Giris, barin KAPANIS fiyatindan varsayiliyor. Gercek
+     bot bar kapanisindan 15 dakikaya kadar sonra calisiyor ve o anki
+     fiyattan giriyor. Olculdu: 1 barlik (8 saat) gecikme +%201'i +%110'a
+     dusuruyor; 15 dakika bunun ~otuz ikide biri, yani etki kucuk ama SIFIR
+     DEGIL.
+  2. KAYMA (slippage). Stop emirleri tam stop fiyatindan dolduruluyor
+     varsayiliyor. Demo hesapta olculdu: 24 cikisin 24'unde kayma sifir -
+     ama gercek brokerde stop emirleri seviyeyi asarak dolar.
+  3. LOT YUVARLAMA. Risk saf R olarak hesaplaniyor; gercekte lot 0.01
+     adimlarla yuvarlanir ve asgari lot sinirl vardir. Kucuk hesaplarda
+     bu, hedeflenen riskten sapma yaratir.
+  4. KOMISYON. MetaQuotes-Demo'da yok; gercek brokerde olabilir.
+  5. MARJ / KALDIRAC SINIRI. Kagit takipte pozisyon her zaman acilabilir.
+
+Yani kagit sonuc, gercek sonucun UST SINIRI olarak okunmali. Farkin
+buyuk kismi giris gecikmesinden gelir.
+
 SADECE demo/kagit takip icindir - gercek emir gondermez.
 """
 from __future__ import annotations
@@ -83,6 +113,13 @@ SOK_CARPANI = 2.0
 SOK_PENCERE = 100
 STOP_ATR = 1.5
 IZ_ATR = 4.0
+
+# ISLEM MALIYETI - her kagit isleme uygulanir.
+# XAUUSD spread'i 71 olcumle saat saat cikarildi: tum gun medyani 0.30,
+# aralik 0.09-0.51 (en ucuz 05-07 ve 18 UTC'de 0.12-0.14, en pahali
+# 20-21 UTC rollover'inda 0.44). Backtest de 0.30 kullandi; kagit takip
+# ayni sayiyi kullanmali yoksa sonuclar olculen beklentiden IYI gorunur.
+SPREAD = 0.30
 RISK_YUZDESI = 0.005
 BASLANGIC_BAKIYE = 100_000.0
 
@@ -152,7 +189,11 @@ def simule(df: pd.DataFrame, yon: list, kaynak: str) -> tuple[list, dict | None]
                     "kaynak": kaynak, "yon": poz["yon"],
                     "giris_zaman": poz["zaman"].isoformat(), "giris": round(poz["giris"], 3),
                     "cikis_zaman": idx[i].isoformat(), "cikis": round(float(cikis), 3),
-                    "R": round((cikis - poz["giris"]) * s / poz["risk"], 4),
+                    # Spread DUSULUR - backtest de boyle olculdu (+%201
+                    # rakami spread 0.30 dahildi). Dusulmezse kagit sonuc
+                    # olculen beklentiden iyi gorunur.
+                    "R": round((cikis - poz["giris"]) * s / poz["risk"] - SPREAD / poz["risk"], 4),
+                    "R_ham": round((cikis - poz["giris"]) * s / poz["risk"], 4),
                     "bar": i - poz["i"],
                 })
                 poz = None
