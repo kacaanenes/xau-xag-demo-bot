@@ -108,6 +108,21 @@ HAM_BAR = 4000          # ~500 adet 8 saatlik bar = ~166 gun
 # fazladan bir islem uydurdu.
 # Sabit capa ile isinma bolgesi hic hareket etmiyor, sonuc her turda ayni.
 BASLANGIC = "2026-08-22"
+
+# SIMULASYONUN basladigi tarih - BASLANGIC'tan (kagit takibin capasi) ONCE
+# olmali ki capa aninda pozisyon durumu belirli olsun.
+#
+# Iki ayri tarih olmasinin sebebi:
+#   SIM_BASLANGIC : motorun islem acmaya BASLADIGI an. Buradan onceki barlar
+#                   yalnizca gostergeleri isitir (Donchian 55, sok penceresi
+#                   100, ATR 14 -> en az ~120 bar gerekir).
+#   BASLANGIC     : kagit takibin SAYMAYA basladigi an. Bundan once acilan
+#                   islemler raporlanmaz ama pozisyon durumunu tasir.
+#
+# SIM_BASLANGIC ne kadar geriye alinirsa sonuc o kadar kararli, ama cekilen
+# veri penceresi de o kadar uzun olmali. 4000 saatlik bar (~500 adet 8h bar,
+# ~166 gun) ile 3-4 ay geriden baslamak rahat sigar.
+SIM_BASLANGIC = "2026-06-01"
 DONCHIAN = 55
 SOK_CARPANI = 2.0
 SOK_PENCERE = 100
@@ -204,14 +219,33 @@ def simule(df: pd.DataFrame, yon: list, kaynak: str) -> tuple[list, dict | None]
 
     Motor, backteste BIREBIR ayni: bar-ici stop, bosluk gercekci dolum
     (stopun otesinde acilan bar ACILISTAN doldurur), pozisyon acikken yeni
-    sinyal dikkate alinmaz, iz suren stop bar kapanisinda guncellenir."""
+    sinyal dikkate alinmaz, iz suren stop bar kapanisinda guncellenir.
+
+    SIMULASYON SABIT TARIHTEN BASLAR (indeksten DEGIL) - 28.08.2026
+    duzeltmesi:
+    Onceki hali `range(DONCHIAN + 60, len(df))` ile basliyordu, yani
+    pencerenin 115. barindan. mt5_veri.cok_barli_getir her cagrida birebir
+    ayni pencereyi vermiyor (olculdu: ayni gun 908 bar, dort gun sonra 862
+    bar). Pencere boyu degisince 115. bar FARKLI BIR TARIHE denk geliyor,
+    simulasyon baska bir noktadan basliyor ve "acik" saydigi pozisyon
+    degisiyor.
+    CANLI KANIT: 22.08'de acik pozisyon "AL @ 4493.77 (19.08)" gorunuyordu;
+    26.08'de ayni sabit capayla "AL @ 4170.69 (05.08)" oldu. Ayni gecmis,
+    farkli sonuc.
+    Artik baslangic SIM_BASLANGIC tarihine bagli: pencere ne kadar uzun
+    olursa olsun simulasyon hep ayni bardan basliyor."""
     kap, ac = df["close"].values, df["open"].values
     yuk, dus = df["high"].values, df["low"].values
     atr = teknik.atr_serisi(df, 14).values
     idx = df.index
     kapanan, poz = [], None
 
-    for i in range(DONCHIAN + 60, len(df)):
+    sim_bas = pd.Timestamp(SIM_BASLANGIC, tz="UTC")
+    bas_i = int(idx.searchsorted(sim_bas))
+    if bas_i >= len(df):
+        return [], None
+
+    for i in range(bas_i, len(df)):
         if poz is not None:
             s = poz["isaret"]
             vurdu = (dus[i] <= poz["stop"]) if s > 0 else (yuk[i] >= poz["stop"])
@@ -301,6 +335,22 @@ async def calistir() -> None:
     gerekli = DONCHIAN + 80
     if len(df) < gerekli:
         print(f"KAGIT A+B: yeterli {BAR_SAATI} saatlik bar yok ({len(df)} < {gerekli}) - atlaniyor.")
+        return
+
+    # ISINMA KONTROLU - sessizce yanlis sonuc uretmektense HIC uretme.
+    #
+    # Simulasyon SIM_BASLANGIC'ten basliyor; ondan once yeterli bar yoksa
+    # gostergeler (Donchian 55, sok penceresi 100) isinmamis olur ve sonuc
+    # pencereye gore degisir - duzeltmeye calistigimiz hatanin ta kendisi.
+    # Bu durumda cikti vermek yerine duruyoruz.
+    sim_bas = pd.Timestamp(SIM_BASLANGIC, tz="UTC")
+    isinma_bar = int((df.index < sim_bas).sum())
+    asgari_isinma = max(DONCHIAN, SOK_PENCERE) + 20
+    if isinma_bar < asgari_isinma:
+        print(f"KAGIT A+B: SIM_BASLANGIC ({SIM_BASLANGIC}) oncesi yeterli isinma yok "
+              f"({isinma_bar} bar < {asgari_isinma}) - veri {df.index[0].date()}'dan "
+              f"basliyor. Sonuc pencereye gore degisebilecegi icin ATLANIYOR. "
+              f"Cozum: HAM_BAR arttir ya da SIM_BASLANGIC'i ileri al.")
         return
 
     a_yon, b_yon = sinyaller(df)
