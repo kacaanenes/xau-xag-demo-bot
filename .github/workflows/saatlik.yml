@@ -58,6 +58,7 @@ jobs:
             kagit_ab*.jsonl
             kagit_ab_acilis*.json
             kagit_ab_ozet*.json
+            yabanci_pozisyon_*.json
           key: kapanis-durumu-${{ github.run_id }}
           restore-keys: |
             kapanis-durumu-

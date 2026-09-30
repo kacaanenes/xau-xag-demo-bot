@@ -140,6 +140,7 @@ import pandas as pd
 import bar_kilidi
 import kapanis_bildirimi
 import kayma_kaydi
+import kimlik
 import mt5_veri
 import risk
 import teknik
@@ -254,6 +255,9 @@ def teyitli_sinyal(df: pd.DataFrame, ema_periyot: int = 50, carpan: float = 2.0,
 
 
 class OrtalamaDonusBot:
+    # Emirlere yazilan ve pozisyon sahipligini belirleyen kimlik (kimlik.py).
+    SISTEM = "audnzd_donus"
+
     def __init__(self, sembol: str = "AUDNZD", kontrat_buyuklugu: float = 100000,
                  ema_periyot: int = 50, sapma_carpani: float = 2.0,
                  sapma_penceresi: int = 500, stop_atr_carpani: float = 1.5,
@@ -320,9 +324,16 @@ class OrtalamaDonusBot:
         self.acilis_yasak_bar = acilis_yasak_bar
 
     async def _pozisyon_getir(self) -> dict | None:
+        """SADECE bu botun actigi pozisyonu doner - ayni semboldeki yabanci
+        pozisyonlar (baska EA, elle acilmis islem) gorulmez. Bkz. kimlik.py."""
         baglanti = await mt5_veri.baglanti_al()
         pozisyonlar = await baglanti.get_positions()
-        return next((p for p in pozisyonlar if p["symbol"] == self.sembol), None)
+        return next(iter(kimlik.bizimkiler(pozisyonlar, self.sembol, self.SISTEM)), None)
+
+    async def _yabanci_getir(self) -> list:
+        baglanti = await mt5_veri.baglanti_al()
+        pozisyonlar = await baglanti.get_positions()
+        return kimlik.yabancilar(pozisyonlar, self.sembol, self.SISTEM)
 
     async def pozisyon_ac(self, yon: str, df: pd.DataFrame, bar_bas) -> dict:
         baglanti = await mt5_veri.baglanti_al()
@@ -357,7 +368,8 @@ class OrtalamaDonusBot:
 
         emir_fn = (baglanti.create_market_buy_order if alis_mi
                    else baglanti.create_market_sell_order)
-        sonuc = await emir_fn(self.sembol, lot, stop, hedef)
+        sonuc = await emir_fn(self.sembol, lot, stop, hedef,
+                              kimlik.emir_secenekleri(self.SISTEM))
 
         try:
             acilan = None
@@ -413,6 +425,12 @@ class OrtalamaDonusBot:
         else:
             print("  Sinyal yok.")
 
+        # Ayni sembolde bize ait olmayan pozisyon varsa (baska EA, elle
+        # acilmis islem) yeni giris yapilmaz - bkz. kimlik.py. Kendi acik
+        # pozisyonumuzun yonetimi bundan etkilenmez.
+        giris_kapali = kimlik.yabanci_engeli(self.sembol, self.SISTEM,
+                                              await self._yabanci_getir())
+
         pozisyon = await self._pozisyon_getir()
         if pozisyon is not None:
             mevcut = "AL" if pozisyon["type"] == "POSITION_TYPE_BUY" else "SAT"
@@ -445,6 +463,11 @@ class OrtalamaDonusBot:
 
         if yon is None:
             print("  Pozisyon yok, sinyal de yok - beklemede.")
+            return
+
+        if giris_kapali:
+            print(f"  Sinyal var ({yon}) ama sembolde yabanci pozisyon var - "
+                  f"giris yapilmiyor (yukaridaki uyariya bakin).")
             return
 
         # CUMA FILTRESI YOK - uclu kurulumda OLCULDU ve ZARAR veriyor:

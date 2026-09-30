@@ -16,6 +16,7 @@ import bar_kilidi
 import gosterim
 import kapanis_bildirimi
 import kayma_kaydi
+import kimlik
 import mt5_veri
 import risk
 import telegram_bildirim
@@ -97,6 +98,9 @@ def _tamamlanmis_barlar(df):
 
 
 class TekEnstrumanBot:
+    # Emirlere yazilan ve pozisyon sahipligini belirleyen kimlik (kimlik.py).
+    SISTEM = "meanrev"
+
     def __init__(self, sembol: str, kontrat_buyuklugu: float, strateji: str,
                  esik: int = 5, risk_odul_orani: float = 1.5, zaman_dilimi: str = "1h",
                  basabas_r: float | None = 1.0, izinli_saatler: tuple | None = None,
@@ -227,9 +231,16 @@ class TekEnstrumanBot:
         return backtest._yon_serisi_confluence(df, self.esik)[-1]
 
     async def _pozisyon_getir(self) -> dict | None:
+        """SADECE bu botun actigi pozisyonu doner - ayni semboldeki yabanci
+        pozisyonlar (baska EA, elle acilmis islem) gorulmez. Bkz. kimlik.py."""
         baglanti = await mt5_veri.baglanti_al()
         pozisyonlar = await baglanti.get_positions()
-        return next((p for p in pozisyonlar if p["symbol"] == self.sembol), None)
+        return next(iter(kimlik.bizimkiler(pozisyonlar, self.sembol, self.SISTEM)), None)
+
+    async def _yabanci_getir(self) -> list:
+        baglanti = await mt5_veri.baglanti_al()
+        pozisyonlar = await baglanti.get_positions()
+        return kimlik.yabancilar(pozisyonlar, self.sembol, self.SISTEM)
 
     async def mevcut_pozisyon_yonu(self) -> str | None:
         pozisyon = await self._pozisyon_getir()
@@ -240,11 +251,16 @@ class TekEnstrumanBot:
     async def kar_zarar(self) -> float:
         baglanti = await mt5_veri.baglanti_al()
         pozisyonlar = await baglanti.get_positions()
-        return sum(p["profit"] for p in pozisyonlar if p["symbol"] == self.sembol)
+        return sum(p["profit"] for p in kimlik.bizimkiler(pozisyonlar, self.sembol, self.SISTEM))
 
     async def pozisyonu_kapat(self) -> dict:
+        """close_positions_by_symbol KULLANILMAZ - o, semboldeki TUM
+        pozisyonlari kapatirdi, baska bir EA'nin actiklari dahil. Sadece
+        kendi pozisyonlarimizi id ile kapatiyoruz."""
         baglanti = await mt5_veri.baglanti_al()
-        return await baglanti.close_positions_by_symbol(self.sembol)
+        pozisyonlar = await baglanti.get_positions()
+        bizim = kimlik.bizimkiler(pozisyonlar, self.sembol, self.SISTEM)
+        return {"kapatilan": [await baglanti.close_position(p["id"]) for p in bizim]}
 
     async def pozisyon_ac(self, yon: str, df) -> dict:
         if yon not in ("AL", "SAT"):
@@ -283,7 +299,8 @@ class TekEnstrumanBot:
                                 azami_lot_broker=await mt5_veri.azami_lot(self.sembol))
 
         emir_fn = baglanti.create_market_buy_order if alis_mi else baglanti.create_market_sell_order
-        sonuc = await emir_fn(self.sembol, lot, stop_hedef["stop_loss"], stop_hedef["take_profit"])
+        sonuc = await emir_fn(self.sembol, lot, stop_hedef["stop_loss"], stop_hedef["take_profit"],
+                              kimlik.emir_secenekleri(self.SISTEM))
 
         # GIRIS KAYMASI OLCUMU: lot ve stop hesabinin dayandigi fiyat (giris)
         # ile emrin FIILEN doldugu fiyati karsilastir. Demo idealize doldurur
@@ -330,6 +347,12 @@ class TekEnstrumanBot:
               f"(sinyal {df.index[-1].strftime('%H:%M')} kapanisindan: {df['close'].iloc[-1]:.5f}) "
               f"| {self.strateji} sinyali: {yon or 'YOK'}")
 
+        # Ayni sembolde bize ait olmayan pozisyon varsa (baska bir EA, elle
+        # acilmis islem) yeni giris yapilmaz - bkz. kimlik.py. Kendi acik
+        # pozisyonumuzun yonetimi bundan etkilenmez.
+        giris_kapali = kimlik.yabanci_engeli(self.sembol, self.SISTEM,
+                                              await self._yabanci_getir())
+
         acik = await self._pozisyon_getir()
         mevcut = None if acik is None else ("AL" if acik["type"] == "POSITION_TYPE_BUY" else "SAT")
         if mevcut is not None:
@@ -344,7 +367,7 @@ class TekEnstrumanBot:
             if gosterim_mi and yon is not None:
                 print(f"  GERCEK SINYAL GELDI ({yon}) - gosterim pozisyonu kapatilip sinyale gore aciliyor...")
                 kz = await self.kar_zarar()
-                print(f"  Kapama: {(await self.pozisyonu_kapat())['stringCode']}")
+                print(f"  Kapama: {len((await self.pozisyonu_kapat())['kapatilan'])} pozisyon kapatildi")
                 telegram_bildirim.pozisyon_kapandi(self.sembol, mevcut, kz, "gercek sinyal geldi, yerini strateji pozisyonu aldi")
                 gosterim.isareti_kaldir(self.sembol)
                 await self._ac_ve_yazdir(yon, df)
@@ -353,7 +376,7 @@ class TekEnstrumanBot:
             if self.sinyal_tersine_cikis and yon is not None and yon != mevcut:
                 print("  Sinyal ters dondu, kapatiliyor...")
                 kz = await self.kar_zarar()
-                print(f"  Kapama: {(await self.pozisyonu_kapat())['stringCode']}")
+                print(f"  Kapama: {len((await self.pozisyonu_kapat())['kapatilan'])} pozisyon kapatildi")
                 telegram_bildirim.pozisyon_kapandi(self.sembol, mevcut, kz, "sinyal ters dondu")
                 gosterim.isareti_kaldir(self.sembol)
             else:
@@ -363,6 +386,11 @@ class TekEnstrumanBot:
         gosterim.isareti_kaldir(self.sembol)  # pozisyon kapanmis, isaret bayat
         if yon is None:
             print("  Pozisyon yok, sinyal de yok - beklemede.")
+            return
+
+        if giris_kapali:
+            print(f"  Sinyal var ({yon}) ama sembolde yabanci pozisyon var - "
+                  f"giris yapilmiyor (yukaridaki uyariya bakin).")
             return
 
         if self.izinli_saatler is not None:

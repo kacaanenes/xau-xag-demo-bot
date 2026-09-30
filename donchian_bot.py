@@ -130,6 +130,7 @@ import pandas as pd
 import bar_kilidi
 import kapanis_bildirimi
 import kayma_kaydi
+import kimlik
 import mt5_veri
 import risk
 import teknik
@@ -182,6 +183,9 @@ def yon_serisi_donchian(df: pd.DataFrame, periyot: int = 55) -> list:
 
 
 class DonchianBot:
+    # Emirlere yazilan ve pozisyon sahipligini belirleyen kimlik (kimlik.py).
+    SISTEM = "donchian"
+
     def __init__(self, sembol: str, kontrat_buyuklugu: float, periyot: int = 55,
                  stop_atr_carpani: float = 1.5, iz_atr_carpani: float = 4.0,
                  risk_yuzdesi: float = 0.005, bar_saati: int = 4,
@@ -217,9 +221,16 @@ class DonchianBot:
         return ham, dort_saatlik(ham, self.bar_saati)
 
     async def _pozisyon_getir(self) -> dict | None:
+        """SADECE bu botun actigi pozisyonu doner - ayni semboldeki yabanci
+        pozisyonlar (baska EA, elle acilmis islem) gorulmez. Bkz. kimlik.py."""
         baglanti = await mt5_veri.baglanti_al()
         pozisyonlar = await baglanti.get_positions()
-        return next((p for p in pozisyonlar if p["symbol"] == self.sembol), None)
+        return next(iter(kimlik.bizimkiler(pozisyonlar, self.sembol, self.SISTEM)), None)
+
+    async def _yabanci_getir(self) -> list:
+        baglanti = await mt5_veri.baglanti_al()
+        pozisyonlar = await baglanti.get_positions()
+        return kimlik.yabancilar(pozisyonlar, self.sembol, self.SISTEM)
 
     # --------------------------------------------------------- iz suren stop
     async def _izi_guncelle(self, pozisyon: dict, df: pd.DataFrame) -> bool:
@@ -326,7 +337,8 @@ class DonchianBot:
         # hareketten 24 puan alip cikmamak icin - olculdu, hedef koymak
         # sistemin butun kazancini siliyor.
         emir_fn = baglanti.create_market_buy_order if alis_mi else baglanti.create_market_sell_order
-        sonuc = await emir_fn(self.sembol, lot, stop, None)
+        sonuc = await emir_fn(self.sembol, lot, stop, None,
+                              kimlik.emir_secenekleri(self.SISTEM))
 
         try:
             acilan = None
@@ -373,6 +385,12 @@ class DonchianBot:
               f"@ {df['close'].iloc[-1]:.5f} | {self.periyot} bar araligi "
               f"{dusuk:.5f} - {yuksek:.5f} | Donchian sinyali: {yon or 'YOK'}")
 
+        # Ayni sembolde bize ait olmayan pozisyon varsa (baska EA, elle
+        # acilmis islem) yeni giris yapilmaz - bkz. kimlik.py. Kendi acik
+        # pozisyonumuzun iz suren stopu bundan etkilenmez.
+        giris_kapali = kimlik.yabanci_engeli(self.sembol, self.SISTEM,
+                                              await self._yabanci_getir())
+
         pozisyon = await self._pozisyon_getir()
         if pozisyon is not None:
             mevcut = "AL" if pozisyon["type"] == "POSITION_TYPE_BUY" else "SAT"
@@ -388,6 +406,11 @@ class DonchianBot:
 
         if yon is None:
             print("  Pozisyon yok, kirilim da yok - beklemede.")
+            return
+
+        if giris_kapali:
+            print(f"  Kirilim var ({yon}) ama sembolde yabanci pozisyon var - "
+                  f"giris yapilmiyor (yukaridaki uyariya bakin).")
             return
 
         # BAR BASINA TEK GIRIS: bot 15 dakikada bir calisiyor, yani ayni
