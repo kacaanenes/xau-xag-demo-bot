@@ -63,7 +63,16 @@ jobs:
           restore-keys: |
             kapanis-durumu-
 
-      - name: XAUUSD botunu calistir
+      # 01.10.2026: HESAP 1'DE ORTALAMAYA DONUS KALDIRILDI.
+      # xau_main.py / xag_main.py (Bollinger meanrev, 1 saatlik) OLCULEN
+      # sonucu negatifti: XAU -0.1002R/islem, XAG -0.1128R/islem. Basabas
+      # kurali kaldirilinca sifira geldi (+0.037 / +0.029) ama kenar yok.
+      # Yerine 8 saatlik kirilim + iz suren stop geldi (+0.555R/islem).
+      # Gerekce ve BILINEN SINIRLAR icin bkz. xau_kirilim_main.py basligi -
+      # ozellikle: kenar neredeyse tamamen AL tarafinda, ve bot 2 ile %100
+      # zaman ortusmesi var (cesitlendirme SAGLAMAZ).
+      # Eski dosyalar silinmedi, workflow'dan cikarildi.
+      - name: "[Hesap 1 - 100k] XAUUSD kirilim botu (8h, hedefsiz)"
         id: xau
         continue-on-error: true
         env:
@@ -73,19 +82,7 @@ jobs:
           MT5_SERVER: ${{ secrets.MT5_SERVER }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: python xau_main.py
-
-      - name: XAGUSD botunu calistir
-        id: xag
-        continue-on-error: true
-        env:
-          METAAPI_TOKEN: ${{ secrets.METAAPI_TOKEN }}
-          MT5_LOGIN: ${{ secrets.MT5_LOGIN }}
-          MT5_PASSWORD: ${{ secrets.MT5_PASSWORD }}
-          MT5_SERVER: ${{ secrets.MT5_SERVER }}
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: python xag_main.py
+        run: python xau_kirilim_main.py
 
       # 05.08.2026: AUDNZD KALDIRILDI, yerine Donchian kirilim botu geldi.
       # AUDNZD 15.2 yillik veride maliyetler dahil -%51 yapiyordu ve hicbir

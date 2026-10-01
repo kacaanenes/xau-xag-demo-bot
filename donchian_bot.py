@@ -189,12 +189,19 @@ class DonchianBot:
     def __init__(self, sembol: str, kontrat_buyuklugu: float, periyot: int = 55,
                  stop_atr_carpani: float = 1.5, iz_atr_carpani: float = 4.0,
                  risk_yuzdesi: float = 0.005, bar_saati: int = 4,
-                 azami_bayatlik_r: float = 0.5):
+                 azami_bayatlik_r: float = 0.5, sistem: str = "donchian",
+                 ham_bar: int = HAM_BAR_ADEDI):
         self.sembol = sembol
         self.kontrat_buyuklugu = kontrat_buyuklugu
         # Donchian periyodu 20 -> 55 (ayni veri duzeltmesiyle). 55, iki
         # metalde de 20'den istikrarli: XAU +%42.9->+%54.5 aralikta,
         # XAG +%108.6 (D20/iz4) -> +%155.7 (D55/iz4).
+        # Kimlik (kimlik.py) - ayni sinif farkli hesaplarda farkli sistem
+        # olarak calisabilsin diye ornek bazinda ayarlanir.
+        self.SISTEM = sistem
+        # 8 saatlik barda periyot 80 icin 100 bar gerekir = 800 saatlik bar.
+        # Varsayilan 1500 saatlik bar 4 saatlikte bol, 8 saatlikte sinirda.
+        self.ham_bar = ham_bar
         self.periyot = periyot
         self.stop_atr_carpani = stop_atr_carpani
         # Iz suren stopun fiyati kac ATR geriden takip ettigi.
@@ -217,7 +224,7 @@ class DonchianBot:
 
     # ---------------------------------------------------------------- veri
     async def _veri(self) -> tuple[pd.DataFrame, pd.DataFrame]:
-        ham = await mt5_veri.cok_barli_getir(self.sembol, "1h", HAM_BAR_ADEDI)
+        ham = await mt5_veri.cok_barli_getir(self.sembol, "1h", self.ham_bar)
         return ham, dort_saatlik(ham, self.bar_saati)
 
     async def _pozisyon_getir(self) -> dict | None:

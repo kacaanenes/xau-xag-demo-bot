@@ -48,6 +48,7 @@ MAGIC = {
     "meanrev": 770101,        # bot 1 - XAUUSD/XAGUSD ortalamaya donus (hesap 1)
     "donchian": 770102,       # bot 2 - XAU/XAG Donchian kirilim (hesap 2)
     "audnzd_donus": 770103,   # bot 3 - AUDNZD ortalamaya donus (hesap 3)
+    "kirilim_8h": 770104,     # bot 1 - XAUUSD 8 saatlik kirilim (hesap 1)
 }
 
 # MetaApi hesap varsayilani; magic vermeden gonderilen emirler bunu tasir.
