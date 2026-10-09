@@ -79,6 +79,12 @@ BOT = DonchianBot(
     # 8 saatlik barda periyot 80 icin 100 bar gerekir = 800 saatlik bar.
     # Varsayilan 1500 sinirda kalirdi; 3000 rahat pay birakir.
     ham_bar=3000,
+    # 09.10.2026: kanalin tepesinde degil ust %10'unda giris.
+    # XAUUSD 8h/p80, 14.7 yil, spread dusulmus:
+    #   %100: 171 islem +94.8R  (yarilar +15.6 / +79.2)
+    #    %90: 228 islem +122.6R (yarilar +51.2 / +71.3)
+    # Hem daha cok islem hem rejime daha az bagimli.
+    giris_esigi=90.0,
 )
 
 

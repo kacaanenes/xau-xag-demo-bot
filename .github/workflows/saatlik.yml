@@ -63,25 +63,31 @@ jobs:
           restore-keys: |
             kapanis-durumu-
 
-      # 01.10.2026 (ikinci degisiklik): HESAP 1 BOSALTILDI.
-      # Hesap 1'de artik MQL5 Market'ten alinan "XAUUSD 5 minute" EA'si
-      # calisiyor (yerel MT5, Mac uzerinde). Bizim botumuz ayni hesaptan
-      # CIKARILDI cunku ikisi birlikte calisamaz:
-      #   EA ortalama pozisyon tutma suresi 10sa49dk, 9 ayda 417 islem
-      #   = sure'nin ~%97'sinde XAUUSD pozisyonu ACIK.
-      # kimlik.py'deki "yabanci pozisyon varsa giris yapma" korumasi bizim
-      # botu neredeyse surekli bloke ederdi (yilda zaten 12 sinyal aliyor).
+      # 09.10.2026: HESAP 1 GERI ACILDI - Market EA'si yerine bizim bot.
+      # 01.10'da hesap 1 bosaltilmisti (MQL5 Market "XAUUSD 5 minute" EA'si
+      # kurulacakti). O EA'nin 407 girisi 25 gostergeye karsi tarandi;
+      # parmak izi saf MOMENTUM cikti (AL girislerinde RSI %80, Donchian
+      # konumu %77, EMA20 ustu %81 yuzdelik; hacim %52 = KULLANMIYOR).
+      # Yani EA bizim Donchian ile AYNI AILEDE - tek anlamli farki kanalin
+      # tepesinde degil %81'inde girmesiydi. O ilke olculdu, dogrulandi ve
+      # kendi botlarimiza uygulandi (giris_esigi=90). EA'yi kurmak yerine
+      # kendi sistemimizi calistiriyoruz: kodu bizde, 14.7 yilda test
+      # edilmis, ve GitHub bulutunda - Mac kapansa bile calisir.
       #
-      # EA'nin OLCULEN sonucu (MT5 Strateji Test Edici, gercek tik, %100
-      # veri kalitesi, 2026.01.01-09.28, sabit 0.01 lot):
-      #   417 islem | isabet %64.5 | +0.264R/islem (+-0.111) | +4.274$
-      #   ort kazanc +37.46 / ort kayip -39.07 (simetrik) | toparlanma 5.74
-      #   en iyi 10 islem toplamin %24'u | iki yarida da pozitif
-      # SINIR: sadece 9 ay, ve surum 7.3 - yazarin sectigi/uydurdugu donem
-      # olabilir. Dogrulama, ileriye donuk canli takiple yapilacak.
-      #
-      # xau_kirilim_main.py SILINMEDI - geri donmek istersek hazir.
-      # Olcumu ve bilinen sinirlari icin bkz. o dosyanin modul basligi.
+      # DIKKAT: bu bot, bot 2 ile ayni ailede ve olculen zaman ortusmesi
+      # %100 (aylik korelasyon 0.609). CESITLENDIRME SAGLAMAZ; hesap 1'in
+      # sermayesi hesap 2'ye aktarilamadigi icin ayri calisiyor.
+      - name: "[Hesap 1 - 100k] XAUUSD kirilim botu (8h, p80, esik %90)"
+        id: xau
+        continue-on-error: true
+        env:
+          METAAPI_TOKEN: ${{ secrets.METAAPI_TOKEN }}
+          MT5_LOGIN: ${{ secrets.MT5_LOGIN }}
+          MT5_PASSWORD: ${{ secrets.MT5_PASSWORD }}
+          MT5_SERVER: ${{ secrets.MT5_SERVER }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python xau_kirilim_main.py
 
       # 05.08.2026: AUDNZD KALDIRILDI, yerine Donchian kirilim botu geldi.
       # AUDNZD 15.2 yillik veride maliyetler dahil -%51 yapiyordu ve hicbir

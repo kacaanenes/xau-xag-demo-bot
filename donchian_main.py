@@ -23,8 +23,15 @@ from metaapi_cloud_sdk.clients.metaapi.trade_exception import TradeException
 from donchian_bot import DonchianBot
 
 BOTLAR = [
-    DonchianBot(sembol="XAUUSD", kontrat_buyuklugu=100),
-    DonchianBot(sembol="XAGUSD", kontrat_buyuklugu=5000),
+    # giris_esigi=90: kanalin tepesinde degil, ust %10'unda gir.
+    # Olculdu (14.7 yil, spread dusulmus) - bkz. yon_serisi_donchian:
+    #   XAU %100: 426 islem +138.1R (yarilar +0.178/+0.471)
+    #   XAU  %90: 533 islem +183.4R (yarilar +0.304/+0.383)
+    #   XAG %100: 425 islem  +98.8R (yarilar +0.290/+0.175)
+    #   XAG  %90: 542 islem +106.6R (yarilar +0.211/+0.182)
+    # Kenar ayni, islem sayisi artiyor, yarilar arasi fark KAPANIYOR.
+    DonchianBot(sembol="XAUUSD", kontrat_buyuklugu=100, giris_esigi=90.0),
+    DonchianBot(sembol="XAGUSD", kontrat_buyuklugu=5000, giris_esigi=90.0),
 ]
 
 

@@ -166,20 +166,54 @@ def dort_saatlik(ham: pd.DataFrame, saat: int = 4) -> pd.DataFrame:
     return df
 
 
-def yon_serisi_donchian(df: pd.DataFrame, periyot: int = 55) -> list:
-    """Kapanis, ONCEKI `periyot` barin en yuksegini asarsa AL; en dusugunun
-    altina inerse SAT.
+def yon_serisi_donchian(df: pd.DataFrame, periyot: int = 55,
+                        giris_esigi: float = 100.0) -> list:
+    """Fiyat, onceki `periyot` barlik kanalin UST %esik'inde ise AL,
+    ALT %esik'inde ise SAT.
 
-    shift(1) sart: kiyaslama kendi barini ICERMEZ, yoksa kapanis her zaman
-    kendi barinin yuksegine esit ya da altinda kalir ve sinyal hic olusmaz.
+    giris_esigi=100 klasik Donchian'dir: sinyal ancak kapanis onceki en
+    yuksegi (en dusugu) ASTIGINDA olusur.
+
+    NEDEN 100 DEGIL (09.10.2026 - olculdu):
+    MQL5 Market'teki "XAUUSD 5 minute" EA'sinin 407 girisi, 25 gostergeye
+    karsi tarandi. Cikan parmak izi saf momentum - ve kritik ayrinti:
+    EA kanalin %81'inde giriyor, zirvede degil. Bu ilke test edildi
+    (14.7 yil, spread dusulmus, 4 saatlik, periyot 55):
+
+        esik   XAUUSD n/ortR          1.yari -> 2.yari
+        %100   426 / +0.324          +0.178 -> +0.471
+        %90    533 / +0.344          +0.304 -> +0.383
+        %80    661 / +0.346          +0.322 -> +0.370
+
+    Kenar ayni kaliyor, islem sayisi artiyor VE yarilar arasi fark
+    kapaniyor - yani sonuc rejime daha az bagimli hale geliyor.
+    8 saatlik/periyot 80'de de ayni yon: %100'de 171 islem +94.8R
+    (yarilar +15.6/+79.2), %90'da 228 islem +122.6R (+51.2/+71.3).
+
+    %80 SECILMEDI: altinda biraz daha iyi ama GUMUSTE bozuluyor
+    (XAG %100 +0.232, %90 +0.197, %80 +0.112). %90 iki enstrumani da
+    iyilestiren esik.
+
+    shift(1) sart: kiyaslama kendi barini ICERMEZ.
     """
     yuksek = df["high"].rolling(periyot).max().shift(1)
     dusuk = df["low"].rolling(periyot).min().shift(1)
     kapanis = df["close"]
-    return [None if yuksek.iloc[i] != yuksek.iloc[i] else
-            ("AL" if kapanis.iloc[i] > yuksek.iloc[i] else
-             "SAT" if kapanis.iloc[i] < dusuk.iloc[i] else None)
-            for i in range(len(df))]
+    aralik = yuksek - dusuk
+    # kanaldaki konum: 0 = dip, 100 = tepe
+    konum = (kapanis - dusuk) / aralik * 100
+    out = []
+    for i in range(len(df)):
+        k = konum.iloc[i]
+        if k != k or aralik.iloc[i] <= 0:      # NaN ya da bozuk aralik
+            out.append(None)
+        elif k >= giris_esigi:
+            out.append("AL")
+        elif k <= 100.0 - giris_esigi:
+            out.append("SAT")
+        else:
+            out.append(None)
+    return out
 
 
 class DonchianBot:
@@ -190,7 +224,7 @@ class DonchianBot:
                  stop_atr_carpani: float = 1.5, iz_atr_carpani: float = 4.0,
                  risk_yuzdesi: float = 0.005, bar_saati: int = 4,
                  azami_bayatlik_r: float = 0.5, sistem: str = "donchian",
-                 ham_bar: int = HAM_BAR_ADEDI):
+                 ham_bar: int = HAM_BAR_ADEDI, giris_esigi: float = 90.0):
         self.sembol = sembol
         self.kontrat_buyuklugu = kontrat_buyuklugu
         # Donchian periyodu 20 -> 55 (ayni veri duzeltmesiyle). 55, iki
@@ -202,6 +236,8 @@ class DonchianBot:
         # 8 saatlik barda periyot 80 icin 100 bar gerekir = 800 saatlik bar.
         # Varsayilan 1500 saatlik bar 4 saatlikte bol, 8 saatlikte sinirda.
         self.ham_bar = ham_bar
+        # Kanalin ust/alt yuzde kacinda giris yapilir (bkz. yon_serisi_donchian).
+        self.giris_esigi = giris_esigi
         self.periyot = periyot
         self.stop_atr_carpani = stop_atr_carpani
         # Iz suren stopun fiyati kac ATR geriden takip ettigi.
@@ -384,7 +420,7 @@ class DonchianBot:
                   f"({len(df)}) - atlaniyor.")
             return
 
-        yon = yon_serisi_donchian(df, self.periyot)[-1]
+        yon = yon_serisi_donchian(df, self.periyot, self.giris_esigi)[-1]
         yuksek = df["high"].rolling(self.periyot).max().shift(1).iloc[-1]
         dusuk = df["low"].rolling(self.periyot).min().shift(1).iloc[-1]
         print(f"{self.sembol} {ham['close'].iloc[-1]:.5f} | son kapanmis "
